@@ -12,13 +12,23 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
 function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 function baht($n){ return number_format((float)$n, 2); }
 
+// ===== ชื่อแอดมินปัจจุบัน =====
+$admin_id = (int)$_SESSION['user_id'];
+$admin_name = 'admin';
+if ($st = $conn->prepare("SELECT username FROM users WHERE id=? LIMIT 1")){
+  $st->bind_param('i', $admin_id);
+  $st->execute();
+  $admin_name = $st->get_result()->fetch_assoc()['username'] ?? 'admin';
+  $st->close();
+}
+
 // ====================== สรุปตัวเลข ======================
 $users_total = (int)$conn->query("SELECT COUNT(*) c FROM users")->fetch_assoc()['c'];
 $products_active = (int)$conn->query("SELECT COUNT(*) c FROM products WHERE status='active'")->fetch_assoc()['c'];
 $orders_open = (int)$conn->query("SELECT COUNT(*) c FROM orders WHERE status IN ('pending','processing','shipped')")->fetch_assoc()['c'];
 $bank_pending = (int)$conn->query("SELECT COUNT(*) c FROM orders WHERE payment_method='bank' AND payment_status='pending'")->fetch_assoc()['c'];
 
-// ยอดขาย 7 วันล่าสุด (นับเฉพาะออเดอร์ที่ชำระแล้ว)
+// ยอดขาย 7 วันล่าสุด
 $revenue7 = 0.00;
 $res = $conn->query("
   SELECT COALESCE(SUM(oi.quantity*oi.unit_price),0) AS rev
@@ -84,6 +94,7 @@ if (!empty($_SESSION['user_id'])) {
     .meta{font-size:12px; color:#6b7280; margin-top:2px}
     .chat-item:hover{background:#f6f9ff}
     .chat-item.active{background:#eef5ff}
+    .ellipsis-1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   </style>
 </head>
 <body>
@@ -292,7 +303,12 @@ if (!empty($_SESSION['user_id'])) {
                   <div class="chat-room">
                     <div class="p-2 border-bottom bg-white d-flex align-items-center gap-2">
                       <div class="fw-semibold" id="roomTitle">เลือกผู้ใช้ทางซ้ายเพื่อเริ่มคุย</div>
-                      <div class="small text-muted ms-auto" id="chatStatus">—</div>
+                      <div class="ms-auto d-flex align-items-center gap-2">
+                        <span class="small text-muted" id="chatStatus">—</span>
+                        <button class="btn btn-sm btn-outline-danger d-none" id="chatEnd">
+                          <i class="bi bi-x-circle"></i> สิ้นสุดแชท
+                        </button>
+                      </div>
                     </div>
                     <div id="chatMsgs" class="msgs"></div>
                     <form id="chatForm" class="p-2 border-top bg-white d-flex gap-2">
@@ -365,6 +381,8 @@ refreshCount(); refreshList();
 setInterval(refreshCount, 30000);
 
 /* ========= Support Chat Widget ========= */
+const ADMIN_NAME = <?= json_encode($admin_name, JSON_UNESCAPED_UNICODE) ?>;
+
 const threadList = document.getElementById('threadList');
 const chatMsgs   = document.getElementById('chatMsgs');
 const roomTitle  = document.getElementById('roomTitle');
@@ -372,6 +390,7 @@ const chatStatus = document.getElementById('chatStatus');
 const chatForm   = document.getElementById('chatForm');
 const chatInput  = document.getElementById('chatInput');
 const chatSend   = document.getElementById('chatSend');
+const chatEndBtn = document.getElementById('chatEnd');
 
 let activeUid = 0;
 let lastMsgId = 0;
@@ -429,9 +448,10 @@ function renderThreads(items){
 function appendMsgs(list){
   const arr = (list||[]).map(normalizeMsg);
   for(const m of arr){
+    const who = (m.sender==='admin') ? ('แอดมิน: '+ADMIN_NAME) : 'ลูกค้า';
     const bubble = document.createElement('div');
     bubble.className = `msg ${m.sender==='admin'?'me':'they'}`;
-    bubble.innerHTML = `${esc(m.message)}<div class="meta">${esc(m.time)}</div>`;
+    bubble.innerHTML = `${esc(m.message)}<div class="meta">${esc(who)} • ${esc(m.time)}</div>`;
     chatMsgs.appendChild(bubble);
     lastMsgId = Math.max(lastMsgId, m.id||0);
   }
@@ -457,18 +477,19 @@ async function openRoom(uid){
   lastMsgId = 0;
   chatMsgs.innerHTML = '';
   chatInput.disabled = chatSend.disabled = false;
+  chatEndBtn.classList.remove('d-none');
 
-  // ดึงหัวห้องเพื่อแสดงชื่อ (เผื่อ API ส่งรูปแบบต่างกัน)
+  // ดึงหัวห้องเพื่อแสดงชื่อ
   try{
     const head = await fetch('support_threads_api.php?single='+uid);
     const hjson = await head.json();
     const name = hjson.username || hjson.user?.username || hjson.name || ('UID '+uid);
-    roomTitle.textContent = 'คุยกับ @' + name;
+    roomTitle.textContent = 'คุยกับ @' + name + '  •  แอดมิน: ' + ADMIN_NAME;
   }catch(_){
-    roomTitle.textContent = 'คุยกับ UID ' + uid;
+    roomTitle.textContent = 'คุยกับ UID ' + uid + '  •  แอดมิน: ' + ADMIN_NAME;
   }
 
-  await loadMsgs(true);          // โหลดก้อนแรก
+  await loadMsgs(true);
   if(pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(pollMsgs, 2500);
 
@@ -517,10 +538,42 @@ chatForm.addEventListener('submit', async (e)=>{
   // ข้อความฝั่งแอดมินจะถูกดึงเข้ามารอบ poll ถัดไป
 });
 
+/* ---- end chat (ลบประวัติ) ---- */
+chatEndBtn.addEventListener('click', async ()=>{
+  if(!activeUid) return;
+  if(!confirm('ยืนยันสิ้นสุดแชทนี้? ระบบจะลบประวัติแชททั้งหมดของผู้ใช้นี้')) return;
+  try{
+    const r = await fetch('../support_end_chat.php', {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({ uid:String(activeUid) })
+    });
+    const j = await r.json();
+    if(j.ok){
+      clearInterval(pollTimer);
+      chatInput.disabled = true;
+      chatSend.disabled  = true;
+      chatEndBtn.disabled = true;
+      chatMsgs.innerHTML = `
+        <div class="text-center text-muted" style="margin-top:8vh">
+          <div class="mb-2"><i class="bi bi-check-circle text-success" style="font-size:2rem"></i></div>
+          <div>สิ้นสุดแชทและลบประวัติเรียบร้อย</div>
+          <div class="small mt-1">หากลูกค้าส่งข้อความใหม่ ระบบจะเปิดห้องแชทให้อัตโนมัติ</div>
+        </div>`;
+      chatStatus.textContent = 'ปิดแล้ว';
+      // รีเฟรชรายชื่อ
+      loadThreads();
+    }else{
+      alert('ไม่สามารถสิ้นสุดแชทได้: '+(j.error||'unknown'));
+    }
+  }catch(e){
+    alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+  }
+});
+
 /* ---- boot ---- */
 (async ()=>{
   const threads = await loadThreads();
-  // เปิดห้องแรกถ้ามี
   if(threads.length){
     openRoom(threads[0].id);
   }
