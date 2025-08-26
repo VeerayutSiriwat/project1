@@ -5,6 +5,32 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require __DIR__ . '/includes/db.php';
 
+require_once __DIR__.'/includes/google_config.php';
+$gclient = make_google_client();
+
+require_once __DIR__.'/includes/google_config.php';
+$gclient = make_google_client();
+
+/* ตั้งค่า redirect ของหน้านี้ */
+$redirect = $_GET['redirect'] ?? 'index.php';
+$path = parse_url('/' . ltrim($redirect, '/'), PHP_URL_PATH);
+if (!preg_match('#^/[A-Za-z0-9/_\-.]*$#', (string)$path)) {
+    $redirect = 'index.php';
+}
+
+/* ทำ state: token + redirect + source */
+$_SESSION['oauth2state_token'] = bin2hex(random_bytes(16));
+$statePayload = [
+  't' => $_SESSION['oauth2state_token'],
+  'redirect' => $redirect,
+  'from' => 'login',
+];
+$state = rtrim(strtr(base64_encode(json_encode($statePayload)), '+/', '-_'), '=');
+
+/* URL ไปขอสิทธิ์ */
+$googleAuthUrl = $gclient->createAuthUrl() . '&state=' . urlencode($state);
+
+
 /* -----------------------------
    ค่าตั้งต้น / รับ redirect
 ------------------------------ */
@@ -111,6 +137,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="d-grid mb-3">
               <button type="submit" class="btn btn-primary">เข้าสู่ระบบ</button>
             </div>
+            <div class="text-center my-2 text-secondary">หรือ</div>
+            <div class="d-grid">
+  <a href="google_start.php?redirect=<?= urlencode($redirect) ?>&from=login"
+     class="btn btn-light border">
+    <img src="https://developers.google.com/identity/images/g-logo.png" width="18" style="margin-top:-3px">
+    &nbsp; เข้าสู่ระบบด้วย Google
+  </a>
+</div>
+            <hr class="text-muted my-3">
           </form>
 
           <div class="text-center small">

@@ -94,16 +94,7 @@ if ($isLoggedIn) {
         <li class="nav-item"><a class="nav-link" href="index.php">หน้าแรก</a></li>
         <li class="nav-item"><a class="nav-link" href="products.php">สินค้า</a></li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" id="serviceDropdown" role="button"
-             data-bs-toggle="dropdown" aria-expanded="false">บริการซ่อม</a>
-          <ul class="dropdown-menu" aria-labelledby="serviceDropdown">
-            <li><a class="dropdown-item" href="#">ลงทะเบียนส่งซ่อม</a></li>
-            <li><a class="dropdown-item" href="#">เทิร์นสินค้าเก่า</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="#">สถานะงานซ่อม</a></li>
-            <li><a class="dropdown-item" href="#">สถานะงานเทิร์น</a></li>
-          </ul>
-        </li>
+        <li class="nav-item"><a class="nav-link" href="#">บริการซ่อม</a></li>
         <li class="nav-item"><a class="nav-link" href="about.php">เกี่ยวกับเรา</a></li>
         <li class="nav-item"><a class="nav-link" href="contact.php">ติดต่อ</a></li>
       </ul>

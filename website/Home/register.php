@@ -4,8 +4,27 @@ if (session_status() === PHP_SESSION_NONE) {
   session_start();
 }
 require __DIR__ . '/includes/db.php';
+require_once __DIR__.'/includes/google_config.php';
 
+/* ---- ตั้งค่า redirect ให้เสร็จก่อน ---- */
 $redirect = $_GET['redirect'] ?? 'index.php';
+// ป้องกัน open redirect
+$path = parse_url('/' . ltrim($redirect, '/'), PHP_URL_PATH);
+if (!preg_match('#^/[A-Za-z0-9/_\-.]*$#', (string)$path)) {
+    $redirect = 'index.php';
+}
+
+/* ---- เตรียม Google Auth ---- */
+$gclient = make_google_client();
+$_SESSION['oauth2state_token'] = bin2hex(random_bytes(16));
+$statePayload = [
+  't' => $_SESSION['oauth2state_token'], // token กัน CSRF
+  'redirect' => $redirect,               // redirect หลังสมัครสำเร็จ
+  'from' => 'register'                   // มาจากหน้า register
+];
+$state = rtrim(strtr(base64_encode(json_encode($statePayload)), '+/', '-_'), '=');
+$googleAuthUrl = $gclient->createAuthUrl() . '&state=' . urlencode($state);
+
 $error = '';
 $success = '';
 
@@ -120,6 +139,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <label class="form-label">ยืนยันรหัสผ่าน</label>
               <input type="password" name="confirm" class="form-control" minlength="6" required>
             </div>
+
+            <div class="d-grid mb-3">
+  <a href="google_start.php?redirect=<?= urlencode($redirect) ?>&from=register"
+     class="btn btn-light border">
+    <img src="https://developers.google.com/identity/images/g-logo.png" width="18" style="margin-top:-3px">
+    &nbsp; สมัครด้วย Google
+  </a>
+</div>
+
+            <div class="text-center my-2 text-secondary">หรือ</div>
 
             <div class="d-grid">
               <button type="submit" class="btn btn-success">สมัครสมาชิก</button>

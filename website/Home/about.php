@@ -37,7 +37,7 @@ function h($s){ return htmlspecialchars($s??'',ENT_QUOTES,'UTF-8'); }
       </div>
       <div class="col-lg-6">
         <div class="p-4 hero-card bg-white">
-          <img src="assets/img/about_hero.svg" class="img-fluid" alt="About">
+          <img src="assets/img/about_hero.png" class="img-fluid" alt="About">
         </div>
       </div>
     </div>
