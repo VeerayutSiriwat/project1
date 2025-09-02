@@ -5,7 +5,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
   header("Location: ../login.php?redirect=admin/product_edit.php"); exit;
 }
 require __DIR__ . '/../includes/db.php';
-require __DIR__ . '/../includes/image_helpers.php'; // << สำคัญสำหรับหลายรูป
+require __DIR__ . '/../includes/image_helpers.php'; // สำหรับหลายรูป
 
 /* รับ id */
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -48,9 +48,34 @@ function load_gallery(mysqli $conn, int $pid): array {
   return $imgs ?: [];
 }
 
-/* แอคชันย่อย: ตั้งเป็นปก / ลบรูป (เรียกมาด้วย POST จากปุ่มบนการ์ด) */
+/* ===== AJAX: อัปโหลดรูปจาก Dropzone (หลายไฟล์) ===== */
+if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['img_action'] ?? '')==='upload') {
+  header('Content-Type: application/json; charset=utf-8');
+  if (empty($_POST['csrf_token']) || $_POST['csrf_token'] !== ($_SESSION['csrf_token'] ?? '')) {
+    echo json_encode(['ok'=>false,'error'=>'CSRF token ไม่ถูกต้อง']); exit;
+  }
+  if (empty($_FILES['images']) || empty($_FILES['images']['name'])) {
+    echo json_encode(['ok'=>false,'error'=>'ไม่พบไฟล์รูป']); exit;
+  }
+  $uploadDir = __DIR__.'/../assets/img';
+  $added = save_product_images($_FILES['images'], $uploadDir, $conn, $id, 20); // รองรับมากสุด 20 รายการต่อครั้ง
+  $gallery = load_gallery($conn, $id);
+  echo json_encode([
+    'ok'    => true,
+    'added' => (int)$added,
+    'items' => array_map(function($g){ return [
+      'id'       => (int)$g['id'],
+      'url'      => '../assets/img/'.$g['filename'],
+      'is_cover' => (int)$g['is_cover']===1,
+      'filename' => $g['filename'],
+    ]; }, $gallery)
+  ]);
+  exit;
+}
+
+/* แอคชันย่อย: ตั้งเป็นปก / ลบรูป */
 $flash = '';
-if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['img_action'])) {
+if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['img_action']) && $_POST['img_action']!=='upload') {
   if (empty($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
     $flash = 'CSRF token ไม่ถูกต้อง';
   } else {
@@ -59,14 +84,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['img_action'])) {
       if (set_cover_image($conn, $id, $imgId)) $flash = 'ตั้งรูปปกเรียบร้อย';
     }
     if ($_POST['img_action'] === 'delete' && ($imgId>0 || isset($_POST['delete_all']))) {
-      // ลบรูปเดียว หรือถ้า tick delete_all มาจากปุ่ม “ลบทั้งหมด”
       delete_product_images($conn, $id, isset($_POST['delete_all']) ? null : $imgId, true);
       $flash = isset($_POST['delete_all']) ? 'ลบรูปทั้งหมดแล้ว' : 'ลบรูปแล้ว';
     }
   }
 }
 
-/* บันทึกฟอร์มหลัก (ข้อมูล + อัปโหลดหลายรูปเพิ่ม) */
+/* บันทึกฟอร์มหลัก (ข้อมูล + อัปโหลดหลายรูปผ่าน input) */
 $errors=[]; $success=false;
 if ($_SERVER['REQUEST_METHOD']==='POST' && empty($_POST['img_action'])) {
   if (empty($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
@@ -97,10 +121,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && empty($_POST['img_action'])) {
     $ok=$st->execute(); $st->close();
     if ($ok) { $success=true; } else { $errors[]='บันทึกข้อมูลไม่สำเร็จ: '.$conn->error; }
 
-    // อัปโหลด “หลายรูป” เพิ่มเข้าแกลเลอรี่
+    // อัปโหลดจาก input (fallback)
     if ($success && !empty($_FILES['images']) && !empty($_FILES['images']['name'])) {
       $uploadDir = __DIR__.'/../assets/img';
-      $added = save_product_images($_FILES['images'], $uploadDir, $conn, $id, 10);
+      $added = save_product_images($_FILES['images'], $uploadDir, $conn, $id, 20);
       if ($added) { $flash = 'บันทึกข้อมูลและเพิ่มรูปใหม่แล้ว'; }
     }
 
@@ -116,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && empty($_POST['img_action'])) {
   }
 }
 
-/* โหลดแกลเลอรี่อีกครั้งหลังทุกแอคชัน */
+/* โหลดแกลเลอรี่อีกครั้ง */
 $gallery = load_gallery($conn, $id);
 $preview = admin_product_image_src($product['image'] ?? '');
 
@@ -127,10 +151,12 @@ function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>แก้ไขสินค้า (หลายรูป) | Admin</title>
+  <title>แก้ไขสินค้า (หลายรูป + Drag & Drop) | Admin</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <style>
+    :root{ --border:#e9edf5; --ink:#0f172a; --muted:#64748b; --brand:#4f46e5; }
+    body{background:#f6f8fb}
     .page-head{background:linear-gradient(135deg,#f6f8ff 0%,#ffffff 70%);border:1px solid #eef2f6;border-radius:14px;padding:14px 16px}
     .card-rounded{border-radius:16px}
     .img-preview{max-height:180px;border:1px solid #e9ecef;border-radius:12px;padding:6px;background:#fff}
@@ -138,6 +164,34 @@ function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
     .thumb img{width:100%;height:180px;object-fit:cover;display:block}
     .badge-cover{position:absolute;top:.5rem;left:.5rem}
     .thumb-actions{position:absolute;right:.5rem;bottom:.5rem;display:flex;gap:.35rem}
+
+    /* Dropzone แบบหรูๆ */
+    .dz{
+      border:1.5px dashed var(--border); border-radius:14px; padding:18px; background:linear-gradient(180deg,#fbfdff,#fff);
+      display:flex; gap:14px; align-items:center; transition:.15s ease; cursor:pointer;
+    }
+    .dz:hover{ border-color:#c7d7ff; background:linear-gradient(180deg,#f8fbff,#fff); }
+    .dz.dragover{ border-color: var(--brand); box-shadow:0 0 0 4px rgba(79,70,229,.08) inset; }
+    .dz .ico{
+      width:56px; height:56px; border-radius:14px; display:grid; place-items:center;
+      background: conic-gradient(from 180deg at 50% 50%, rgba(79,70,229,.18), rgba(14,165,233,.18), rgba(79,70,229,.18));
+      color:#1e3a8a; font-size:28px;
+    }
+    .dz .txt .lead{ font-weight:700; }
+    .dz small{ color: var(--muted); }
+    .dz-preview{
+      display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;
+    }
+    .dz-item{
+      width:96px; aspect-ratio:1; border:1px solid var(--border); border-radius:12px; overflow:hidden; position:relative; background:#fff;
+    }
+    .dz-item img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .dz-item .bar{ position:absolute; left:0; right:0; bottom:0; height:6px; background:#eef2ff; }
+    .dz-item .bar>div{ height:100%; width:0%; background:linear-gradient(90deg, #4f46e5, #0ea5e9); transition:width .2s linear; }
+
+    @media (max-width: 991.98px){
+      .thumb img{height:160px}
+    }
   </style>
 </head>
 <body class="bg-light">
@@ -173,7 +227,7 @@ function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
   <?php endif; ?>
 
   <div class="row g-3">
-    <!-- ฟอร์มข้อมูล + อัปโหลดหลายรูป -->
+    <!-- ฟอร์มข้อมูล + อัปโหลดหลายรูป (input ปกติ: fallback) -->
     <div class="col-lg-8">
       <div class="card shadow-sm card-rounded">
         <div class="card-header bg-white fw-semibold">รายละเอียดสินค้า</div>
@@ -223,7 +277,7 @@ function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
               <div class="col-12">
                 <label class="form-label">เพิ่มรูปสินค้า (เลือกได้หลายรูป)</label>
-                <input type="file" name="images[]" class="form-control" accept="image/*" multiple>
+                <input id="fileInput" type="file" name="images[]" class="form-control" accept="image/*" multiple>
                 <div class="form-text">รองรับ: jpg, jpeg, png, gif, webp — จะถูกเพิ่มเข้าแกลเลอรี่</div>
               </div>
 
@@ -247,7 +301,7 @@ function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
       </div>
     </div>
 
-    <!-- แกลเลอรี่ภาพ -->
+    <!-- แกลเลอรี่ + DROPZONE -->
     <div class="col-lg-4">
       <div class="card shadow-sm card-rounded h-100">
         <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
@@ -262,47 +316,64 @@ function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
           <?php endif; ?>
         </div>
         <div class="card-body">
-          <?php if (!$gallery): ?>
-            <div class="text-muted small">ยังไม่มีรูปในแกลเลอรี่</div>
-            <div class="mt-2"><img src="<?= h($preview) ?>" class="img-preview w-100" alt="preview"></div>
-          <?php else: ?>
-            <div class="row g-3">
-              <?php foreach($gallery as $g): ?>
-                <div class="col-12">
-                  <div class="thumb">
-                    <img src="<?= h('../assets/img/'.$g['filename']) ?>" alt="">
-                    <?php if ((int)$g['is_cover']===1): ?>
-                      <span class="badge text-bg-success badge-cover"><i class="bi bi-star-fill me-1"></i>Cover</span>
-                    <?php endif; ?>
-                    <div class="thumb-actions">
-                      <?php if ((int)$g['is_cover']!==1): ?>
-                        <form method="post" class="d-inline">
-                          <input type="hidden" name="csrf_token" value="<?= h($csrf_token) ?>">
-                          <input type="hidden" name="img_action" value="set_cover">
-                          <input type="hidden" name="image_id" value="<?= (int)$g['id'] ?>">
-                          <button class="btn btn-sm btn-outline-primary"><i class="bi bi-star"></i></button>
-                        </form>
+
+          <!-- Dropzone -->
+          <div id="dz" class="dz mb-3" tabindex="0">
+            <div class="ico"><i class="bi bi-cloud-arrow-up"></i></div>
+            <div class="txt">
+              <div class="lead">ลากไฟล์รูปมาวางที่นี่ หรือ <u>คลิกเพื่อเลือก</u></div>
+              <small>อัปโหลดได้หลายไฟล์พร้อมกัน (สูงสุดครั้งละ 20 รูป, ≤ 12MB/ไฟล์)</small>
+            </div>
+            <!-- hidden real input สำหรับเปิด dialog เมื่อคลิก -->
+            <input id="dzInput" type="file" accept="image/*" multiple hidden>
+          </div>
+          <div id="dzPreview" class="dz-preview" aria-live="polite"></div>
+
+          <!-- รายการรูป -->
+          <div id="galleryList" class="mt-3">
+            <?php if (!$gallery): ?>
+              <div class="text-muted small">ยังไม่มีรูปในแกลเลอรี่</div>
+              <div class="mt-2"><img src="<?= h($preview) ?>" class="img-preview w-100" alt="preview"></div>
+            <?php else: ?>
+              <div class="row g-3">
+                <?php foreach($gallery as $g): ?>
+                  <div class="col-12">
+                    <div class="thumb">
+                      <img src="<?= h('../assets/img/'.$g['filename']) ?>" alt="">
+                      <?php if ((int)$g['is_cover']===1): ?>
+                        <span class="badge text-bg-success badge-cover"><i class="bi bi-star-fill me-1"></i>Cover</span>
                       <?php endif; ?>
-                      <form method="post" class="d-inline" onsubmit="return confirm('ลบรูปนี้?')">
-                        <input type="hidden" name="csrf_token" value="<?= h($csrf_token) ?>">
-                        <input type="hidden" name="img_action" value="delete">
-                        <input type="hidden" name="image_id" value="<?= (int)$g['id'] ?>">
-                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                      </form>
+                      <div class="thumb-actions">
+                        <?php if ((int)$g['is_cover']!==1): ?>
+                          <form method="post" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="<?= h($csrf_token) ?>">
+                            <input type="hidden" name="img_action" value="set_cover">
+                            <input type="hidden" name="image_id" value="<?= (int)$g['id'] ?>">
+                            <button class="btn btn-sm btn-outline-primary" title="ตั้งเป็นปก"><i class="bi bi-star"></i></button>
+                          </form>
+                        <?php endif; ?>
+                        <form method="post" class="d-inline" onsubmit="return confirm('ลบรูปนี้?')">
+                          <input type="hidden" name="csrf_token" value="<?= h($csrf_token) ?>">
+                          <input type="hidden" name="img_action" value="delete">
+                          <input type="hidden" name="image_id" value="<?= (int)$g['id'] ?>">
+                          <button class="btn btn-sm btn-outline-danger" title="ลบรูปนี้"><i class="bi bi-trash"></i></button>
+                        </form>
+                      </div>
                     </div>
                   </div>
-                </div>
-              <?php endforeach; ?>
-            </div>
-          <?php endif; ?>
+                <?php endforeach; ?>
+              </div>
+            <?php endif; ?>
+          </div>
+
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- realtime validate ราคาลด -->
 <script>
+/* ===== Validate ราคาลด ===== */
 (()=> {
   const priceEl   = document.getElementById('price');
   const discEl    = document.getElementById('discount_price');
@@ -332,6 +403,86 @@ function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
   priceEl.addEventListener('blur', ()=>{ format2(priceEl); validate(); });
   discEl.addEventListener('blur',  ()=>{ format2(discEl);  validate(); });
   document.addEventListener('DOMContentLoaded', validate);
+})();
+
+/* ===== Drag & Drop Uploader (AJAX) ===== */
+(function(){
+  const dz        = document.getElementById('dz');
+  const dzInput   = document.getElementById('dzInput');   // hidden picker
+  const dzPreview = document.getElementById('dzPreview');
+  const csrf      = <?= json_encode($csrf_token) ?>;
+  const maxPerUpload = 20;
+  const maxSize   = 12 * 1024 * 1024; // 12MB
+  const allowed   = ['image/jpeg','image/png','image/gif','image/webp'];
+
+  if(!dz) return;
+
+  dz.addEventListener('click', ()=> dzInput.click());
+  dz.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); dzInput.click(); } });
+
+  ['dragenter','dragover'].forEach(ev=>{
+    dz.addEventListener(ev, (e)=>{ e.preventDefault(); e.stopPropagation(); dz.classList.add('dragover'); });
+  });
+  ['dragleave','drop'].forEach(ev=>{
+    dz.addEventListener(ev, (e)=>{ e.preventDefault(); e.stopPropagation(); dz.classList.remove('dragover'); });
+  });
+
+  dz.addEventListener('drop', (e)=>{
+    const files = Array.from(e.dataTransfer.files || []);
+    handleFiles(files);
+  });
+  dzInput.addEventListener('change', (e)=>{
+    const files = Array.from(dzInput.files || []);
+    handleFiles(files);
+    dzInput.value=''; // reset
+  });
+
+  function handleFiles(files){
+    if(!files.length) return;
+    const pick = files.filter(f=> allowed.includes(f.type) && f.size>0 && f.size<=maxSize);
+    if(pick.length===0){ alert('ชนิดไฟล์ไม่ถูกต้อง หรือไฟล์ใหญ่เกิน 12MB'); return; }
+    if(pick.length>maxPerUpload){ alert('อัปโหลดได้สูงสุดครั้งละ '+maxPerUpload+' ไฟล์'); pick.length=maxPerUpload; }
+    // Preview tiles
+    dzPreview.innerHTML='';
+    const entries = pick.map(f=>{
+      const div = document.createElement('div'); div.className='dz-item';
+      const img = document.createElement('img'); div.appendChild(img);
+      const bar = document.createElement('div'); bar.className='bar'; const prog=document.createElement('div'); bar.appendChild(prog); div.appendChild(bar);
+      dzPreview.appendChild(div);
+      const reader=new FileReader(); reader.onload=()=>{ img.src=reader.result; }; reader.readAsDataURL(f);
+      return {file:f, bar:prog};
+    });
+    // Upload via XHR (for progress)
+    const form = new FormData();
+    form.append('img_action','upload');
+    form.append('csrf_token', csrf);
+    for (const e of entries){ form.append('images[]', e.file, e.file.name); }
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'product_edit.php?id=<?= (int)$id ?>', true);
+    xhr.upload.onprogress = function(ev){
+      if(!ev.lengthComputable) return;
+      const ratio = ev.loaded / ev.total;
+      // แจก progress เท่าๆ กันให้ทุก tile
+      entries.forEach(ent=> ent.bar.style.width = (ratio*100).toFixed(1)+'%');
+    };
+    xhr.onreadystatechange = function(){
+      if(xhr.readyState===4){
+        try{
+          const res = JSON.parse(xhr.responseText||'{}');
+          if(res.ok){
+            // อัปโหลดเสร็จ รีเฟรชให้เห็นแกลเลอรี่ล่าสุด (ง่ายและชัวร์)
+            location.reload();
+          }else{
+            alert(res.error || 'อัปโหลดไม่สำเร็จ');
+          }
+        }catch(_){
+          alert('อัปโหลดไม่สำเร็จ');
+        }
+      }
+    };
+    xhr.send(form);
+  }
 })();
 </script>
 </body>

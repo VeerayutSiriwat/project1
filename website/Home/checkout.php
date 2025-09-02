@@ -65,31 +65,42 @@ $profile = [
   'address_line1' => '', 'address_line2' => '',
   'district' => '', 'province' => '', 'postcode' => ''
 ];
-$st = $conn->prepare("SELECT COALESCE(full_name,'') full_name, COALESCE(phone,'') phone,
-                             COALESCE(address_line1,'') address_line1, COALESCE(address_line2,'') address_line2,
-                             COALESCE(district,'') district, COALESCE(province,'') province, COALESCE(postcode,'') postcode
-                      FROM users WHERE id=? LIMIT 1");
+
+$st = $conn->prepare("
+  SELECT
+    COALESCE(full_name,'')      AS full_name,
+    COALESCE(phone,'')          AS phone,
+    COALESCE(address_line1,'')  AS address_line1,
+    COALESCE(address_line2,'')  AS address_line2,
+    COALESCE(district,'')       AS district,
+    COALESCE(province,'')       AS province,
+    COALESCE(postcode,'')       AS postcode
+  FROM users
+  WHERE id=? LIMIT 1
+");
 $st->bind_param("i",$user_id);
 $st->execute();
 if ($u = $st->get_result()->fetch_assoc()) { $profile = $u; }
 $st->close();
 
-/* สมุดที่อยู่ */
+/* ---------------- 2.1) สมุดที่อยู่ (ถ้ามี) ---------------- */
+// ถ้าไม่มีตาราง address_book ก็ปล่อยเป็น [] ไว้
 $book = [];
-$st = $conn->prepare("SELECT id, COALESCE(full_name,'') full_name, COALESCE(phone,'') phone,
-                             COALESCE(address_line1,'') a1, COALESCE(address_line2,'') a2,
-                             COALESCE(district,'') dist, COALESCE(province,'') prov, COALESCE(postcode,'') pc,
-                             is_default
-                      FROM user_addresses
-                      WHERE user_id=?
-                      ORDER BY is_default DESC, id DESC");
-$st->bind_param("i",$user_id);
+/*
+$st = $conn->prepare("
+  SELECT id, full_name, phone,
+         address_line1 AS a1, address_line2 AS a2,
+         district AS dist, province AS prov, postcode AS pc,
+         is_default
+  FROM address_book
+  WHERE user_id=?
+  ORDER BY is_default DESC, id DESC
+");
+$st->bind_param("i", $user_id);
 $st->execute();
-$book_rs = $st->get_result();
-while($r = $book_rs->fetch_assoc()){
-  $book[] = $r;
-}
+$book = $st->get_result()->fetch_all(MYSQLI_ASSOC);
 $st->close();
+*/
 ?>
 <!doctype html>
 <html lang="th">
@@ -127,7 +138,7 @@ $st->close();
           ?>
           <li class="list-group-item d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-3">
-              <img src="<?=h($img)?>" width="56" height="56" class="rounded" style="object-fit:cover">
+              <img src="<?=h($img)?>" width="56" height="56" class="rounded" style="object-fit:cover" alt="">
               <div>
                 <div class="fw-semibold"><?=h($it['name'])?></div>
                 <div class="small text-muted">x <?= (int)$it['qty'] ?></div>
@@ -150,63 +161,79 @@ $st->close();
             <!-- เลือกแหล่งที่อยู่ -->
             <div class="mb-3">
               <label class="form-label">เลือกที่อยู่</label>
+
               <div class="form-check">
                 <input class="form-check-input" type="radio" name="address_source" id="addrProfile" value="profile" checked>
                 <label class="form-check-label" for="addrProfile">ใช้ที่อยู่จากโปรไฟล์</label>
               </div>
-              <div class="form-check">
-                <input class="form-check-input" type="radio" name="address_source" id="addrBook" value="book" <?=empty($book)?'disabled':'';?>>
+
+              <?php if (!empty($book)): ?>
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="radio" name="address_source" id="addrBook" value="book">
                 <label class="form-check-label" for="addrBook">เลือกจากสมุดที่อยู่</label>
               </div>
               <div class="ms-4 mt-2" id="bookPicker" style="display:none">
-                <select class="form-select" name="address_id" id="address_id" <?=empty($book)?'disabled':'';?>>
-                  <?php foreach($book as $b): 
-                    $label = trim($b['full_name'].' | '.$b['phone'].' | '.$b['a1'].' '.$b['a2'].' '.$b['dist'].' '.$b['prov'].' '.$b['pc']);
+                <select class="form-select" name="address_id" id="address_id">
+                  <?php foreach($book as $b):
+                    $label = trim(($b['full_name']??'').' | '.($b['phone']??'').' | '.($b['a1']??'').' '.($b['a2']??'').' '.($b['dist']??'').' '.($b['prov']??'').' '.($b['pc']??''));
                   ?>
-                    <option value="<?=$b['id']?>"><?=$b['is_default']?'[ค่าเริ่มต้น] ':''?><?=h($label)?></option>
+                    <option value="<?= (int)$b['id'] ?>"><?= !empty($b['is_default'])?'[ค่าเริ่มต้น] ':'' ?><?= h($label) ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>
+              <?php else: ?>
+                <!-- ถ้าไม่มีสมุดที่อยู่ ให้ปิดตัวเลือกและ picker -->
+                <div class="ms-4 mt-2 small text-muted">ยังไม่มีสมุดที่อยู่</div>
+              <?php endif; ?>
+
               <div class="form-check mt-2">
                 <input class="form-check-input" type="radio" name="address_source" id="addrCustom" value="custom">
                 <label class="form-check-label" for="addrCustom">กรอกที่อยู่ใหม่</label>
               </div>
             </div>
 
-            <!-- ฟิลด์ที่อยู่ (จะใส่ค่าอัตโนมัติเมื่อเลือกโปรไฟล์/สมุดที่อยู่) -->
+            <!-- ฟิลด์ที่อยู่: เติมค่าจาก PHP เป็นค่าเริ่มต้น (กันพลาดถ้า JS ไม่ทำงาน) -->
             <div class="mb-2">
               <label class="form-label">ชื่อ-นามสกุล</label>
-              <input type="text" name="fullname" id="fullname" class="form-control" required>
+              <input type="text" name="fullname" id="fullname" class="form-control" required
+                     value="<?=h($profile['full_name'])?>">
             </div>
 
             <div class="addr-grid">
               <div>
                 <label class="form-label">เบอร์โทร</label>
-                <input type="text" name="phone" id="phone" class="form-control" required>
+                <input type="text" name="phone" id="phone" class="form-control" required
+                       value="<?=h($profile['phone'])?>">
               </div>
               <div>
                 <label class="form-label">รหัสไปรษณีย์</label>
-                <input type="text" name="postcode" id="postcode" class="form-control">
+                <input type="text" name="postcode" id="postcode" class="form-control"
+                       value="<?=h($profile['postcode'])?>">
               </div>
             </div>
 
             <div class="mb-2">
               <label class="form-label">ที่อยู่ (บรรทัดที่ 1)</label>
-              <input type="text" name="address_line1" id="address_line1" class="form-control" required>
+              <input type="text" name="address_line1" id="address_line1" class="form-control" required
+                     value="<?=h($profile['address_line1'])?>">
             </div>
             <div class="mb-2">
               <label class="form-label">ที่อยู่ (บรรทัดที่ 2)</label>
-              <input type="text" name="address_line2" id="address_line2" class="form-control" placeholder="ตึก/หมู่บ้าน/ชั้น/ห้อง ฯลฯ (ถ้ามี)">
+              <input type="text" name="address_line2" id="address_line2" class="form-control"
+                     placeholder="ตึก/หมู่บ้าน/ชั้น/ห้อง ฯลฯ (ถ้ามี)"
+                     value="<?=h($profile['address_line2'])?>">
             </div>
 
             <div class="addr-grid">
               <div>
                 <label class="form-label">เขต/อำเภอ</label>
-                <input type="text" name="district" id="district" class="form-control">
+                <input type="text" name="district" id="district" class="form-control"
+                       value="<?=h($profile['district'])?>">
               </div>
               <div>
                 <label class="form-label">จังหวัด</label>
-                <input type="text" name="province" id="province" class="form-control">
+                <input type="text" name="province" id="province" class="form-control"
+                       value="<?=h($profile['province'])?>">
               </div>
             </div>
 
@@ -220,7 +247,7 @@ $st->close();
                 <option value="bank">โอนเงินธนาคาร</option>
               </select>
               <div class="form-text hint">
-                * เลือกเก็บชำระผ่านธนาคาร ต้องรอการตรวจสอบจาก ผู้ดูแลระบบก่อน
+                * เลือกชำระผ่านธนาคาร ต้องรอการตรวจสอบจากผู้ดูแลระบบก่อน
               </div>
             </div>
 
@@ -244,11 +271,10 @@ $st->close();
 </div>
 
 <?php include __DIR__.'/assets/html/footer.html'; ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // เติมค่าจากโปรไฟล์/สมุดที่อยู่อัตโนมัติ + toggle การแสดงตัวเลือก
 const profile = <?=json_encode($profile, JSON_UNESCAPED_UNICODE)?>;
-const book    = <?=json_encode($book, JSON_UNESCAPED_UNICODE)?>;
+const book    = <?=json_encode($book, JSON_UNESCAPED_UNICODE)?>; // [] เสมอถ้าไม่มี
 
 const el = (id)=>document.getElementById(id);
 const inputs = ['fullname','phone','address_line1','address_line2','district','province','postcode'];
@@ -266,7 +292,7 @@ function fillFromProfile(){
 function fillFromBook(){
   const sel = document.getElementById('address_id');
   const id  = parseInt(sel?.value || 0, 10);
-  const a = book.find(x => x.id == id) || {};
+  const a = Array.isArray(book) ? (book.find(x => String(x.id) === String(id)) || {}) : {};
   el('fullname').value      = a.full_name || '';
   el('phone').value         = a.phone || '';
   el('address_line1').value = a.a1 || '';
@@ -281,7 +307,8 @@ function clearCustom(){
 }
 
 function toggleBookPicker(show){
-  document.getElementById('bookPicker').style.display = show ? 'block' : 'none';
+  const picker = document.getElementById('bookPicker');
+  if (picker) picker.style.display = show ? 'block' : 'none';
 }
 
 document.getElementById('addrProfile')?.addEventListener('change', e=>{
@@ -301,7 +328,7 @@ document.getElementById('addrCustom')?.addEventListener('change', e=>{
 });
 document.getElementById('address_id')?.addEventListener('change', fillFromBook);
 
-// เริ่มต้นด้วยโปรไฟล์
+// เริ่มต้นด้วยโปรไฟล์ (แม้ไม่มี JS ก็มี value จาก PHP แล้ว)
 fillFromProfile();
 </script>
 </body>

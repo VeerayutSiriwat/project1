@@ -28,7 +28,7 @@ function stars($n){
 }
 
 /* ---------- สินค้า ---------- */
-$latestProducts = [];
+
 $dealProducts   = [];
 
 if ($res = $conn->query("
@@ -239,48 +239,6 @@ if ($res = $conn->query("
   </div>
 </section>
 
-<!-- ===================== NEW ARRIVALS ===================== -->
-<section class="py-4">
-  <div class="container">
-    <div class="sec-head">
-      <h3 class="fw-bold mb-0"><i class="bi bi-stars text-primary me-1"></i>มาใหม่ล่าสุด</h3>
-      <div class="line"></div>
-      <a class="text-decoration-none" href="products.php">ดูทั้งหมด</a>
-    </div>
-
-    <?php if (empty($latestProducts)): ?>
-      <div class="text-center text-muted py-5">ยังไม่มีสินค้าใหม่</div>
-    <?php else: ?>
-      <div class="row g-3">
-        <?php foreach($latestProducts as $p):
-          $hasDiscount = ($p['discount_price']!==null && (float)$p['discount_price']>0 && (float)$p['discount_price'] < (float)$p['price']);
-          $price  = $hasDiscount ? (float)$p['discount_price'] : (float)$p['price'];
-          $img    = product_img($p);
-        ?>
-        <div class="col-6 col-md-4 col-lg-3">
-          <div class="p-card h-100">
-            <div class="ribbon blue">NEW</div>
-            <a class="p-thumb d-block" href="product.php?id=<?= (int)$p['id'] ?>">
-              <img src="<?= h($img) ?>" alt="<?= h($p['name']) ?>">
-            </a>
-            <div class="p-body">
-              <div class="p-name mb-1"><a class="stretched-link text-decoration-none text-dark" href="product.php?id=<?= (int)$p['id'] ?>"><?= h($p['name']) ?></a></div>
-              <div class="price fw-bold">
-                <?= baht($price) ?> ฿
-                <?php if($hasDiscount): ?><span class="old"><?= baht($p['price']) ?> ฿</span><?php endif; ?>
-              </div>
-              <div class="mt-2 p-actions">
-                <a href="product.php?id=<?= (int)$p['id'] ?>" class="btn btn-soft w-100"><i class="bi bi-eye"></i> รายละเอียด</a>
-                <a href="cart_add.php?id=<?= (int)$p['id'] ?>" class="btn btn-primary w-100"><i class="bi bi-cart-plus"></i> ใส่รถ</a>
-              </div>
-            </div>
-          </div>
-        </div>
-        <?php endforeach; ?>
-      </div>
-    <?php endif; ?>
-  </div>
-</section>
 
 <!-- ===================== REAL CUSTOMER REVIEWS ===================== -->
 <section class="py-5" style="background:linear-gradient(180deg,#f8fbff,#fff)">
@@ -362,8 +320,8 @@ if ($res = $conn->query("
       </div>
     </div>
   </div>
+</section>
 <?php include 'assets/html/footer.html'; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

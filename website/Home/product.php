@@ -308,6 +308,12 @@ if ($reviews) {
     <!-- Gallery -->
     <div class="col-md-5">
       <img id="mainImg" src="<?=h($gallery[0])?>" alt="<?=h($product['name'])?>" class="shadow-sm w-100">
+
+      <!-- แสดงรหัสสินค้า -->
+  <div class="mt-2 text-muted small">
+    รหัสสินค้า: <?= h($product['product_code'] ?? 'PRD'.$product['id']) ?>
+  </div>
+
       <?php if (count($gallery) > 1): ?>
         <div class="thumbs">
           <?php foreach($gallery as $i => $src): ?>

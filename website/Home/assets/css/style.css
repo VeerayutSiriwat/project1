@@ -168,6 +168,12 @@ body{
 .line-clamp-2{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .line-clamp-3{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
 
+
+
+.sidebar .btn { border-radius: 12px; }
+.sidebar .list-group .list-group-item { border-radius: 10px; margin-bottom: 6px; }
+.badge-float{ position:absolute; top:8px; left:8px; }
+.badge-stock{ position:absolute; top:8px; right:8px; }
 /* ================= Responsive ================= */
 @media (max-width: 576px){
   .product-media{height:170px}

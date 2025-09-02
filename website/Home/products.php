@@ -16,8 +16,10 @@ function short_desc($html, $limit = 120){
 
 $loggedIn = isset($_SESSION['user_id']);
 
-$q   = trim($_GET['q'] ?? '');
-$cat = isset($_GET['cat']) ? (int)$_GET['cat'] : 0;
+$q       = trim($_GET['q'] ?? '');
+$cat     = isset($_GET['cat']) ? (int)$_GET['cat'] : 0;
+$special = $_GET['special'] ?? 'all'; // all | deals | new
+if (!in_array($special, ['all','deals','new'], true)) $special = 'all';
 
 /* ================= Pagination ================= */
 $per_page = 12;
@@ -26,16 +28,26 @@ $offset   = ($page - 1) * $per_page;
 
 /* หมวดหมู่ */
 $cats = [];
-$res = $conn->query("SELECT id,name FROM categories ORDER BY name ASC");
-if ($res) $cats = $res->fetch_all(MYSQLI_ASSOC);
+if ($res = $conn->query("SELECT id,name FROM categories ORDER BY name ASC")) {
+  $cats = $res->fetch_all(MYSQLI_ASSOC);
+}
 
 /* นับจำนวนสินค้าทั้งหมดตามตัวกรอง */
 $count_sql = "SELECT COUNT(*) AS c
               FROM products p
               WHERE p.status='active'";
 $count_params=[]; $count_types='';
+
 if ($cat>0){ $count_sql.=" AND p.category_id=?"; $count_params[]=$cat; $count_types.='i'; }
 if ($q!==''){ $count_sql.=" AND (p.name LIKE ? OR p.description LIKE ?)"; $like="%$q%"; $count_params[]=$like; $count_params[]=$like; $count_types.='ss'; }
+
+if ($special==='deals'){
+  $count_sql.=" AND p.discount_price IS NOT NULL AND p.discount_price>0 AND p.discount_price<p.price";
+}
+if ($special==='new'){
+  $count_sql.=" AND p.created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)";
+}
+
 $stc = $conn->prepare($count_sql);
 if($count_params) $stc->bind_param($count_types, ...$count_params);
 $stc->execute();
@@ -53,16 +65,29 @@ function page_link($p){
 
 /* สินค้า (ตามหน้า) */
 $sql = "SELECT p.id,p.name,p.description,p.price,p.discount_price,p.stock,p.image,
-               c.name AS category_name
+               c.name AS category_name, p.created_at
         FROM products p
         LEFT JOIN categories c ON c.id=p.category_id
         WHERE p.status='active'";
 $params=[]; $types="";
+
 if ($cat>0){ $sql.=" AND p.category_id=?"; $params[]=$cat; $types.="i"; }
 if ($q!==''){ $sql.=" AND (p.name LIKE ? OR p.description LIKE ?)"; $like="%$q%"; $params[]=$like; $params[]=$like; $types.="ss"; }
-$sql.=" ORDER BY p.created_at DESC LIMIT ? OFFSET ?";
+
+if ($special==='deals'){
+  $sql.=" AND p.discount_price IS NOT NULL AND p.discount_price>0 AND p.discount_price<p.price
+          ORDER BY (p.price - p.discount_price)/p.price DESC, p.created_at DESC";
+} elseif ($special==='new'){
+  $sql.=" AND p.created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)
+          ORDER BY p.created_at DESC";
+} else {
+  $sql.=" ORDER BY p.created_at DESC";
+}
+
+$sql.=" LIMIT ? OFFSET ?";
 $params[]=$per_page; $types.="i";
 $params[]=$offset;   $types.="i";
+
 $stmt=$conn->prepare($sql);
 if($params) $stmt->bind_param($types, ...$params);
 $stmt->execute();
@@ -112,14 +137,41 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     <div class="row">
       <!-- Sidebar -->
       <aside class="col-lg-3 mb-3 sidebar">
+
+        <!-- ปุ่มตัวกรองหลัก -->
+        <div class="d-grid gap-2 mb-3">
+          <a href="products.php?<?= http_build_query(array_merge($_GET,['special'=>'all','page'=>1])) ?>"
+             class="btn <?= $special==='all'?'btn-primary':'btn-outline-primary' ?>">
+            ทั้งหมด
+          </a>
+          <a href="products.php?<?= http_build_query(array_merge($_GET,['special'=>'deals','page'=>1])) ?>"
+             class="btn <?= $special==='deals'?'btn-danger':'btn-outline-danger' ?>">
+            <i class="bi bi-lightning-charge-fill"></i> ดีลพิเศษ
+          </a>
+          <a href="products.php?<?= http_build_query(array_merge($_GET,['special'=>'new','page'=>1])) ?>"
+             class="btn <?= $special==='new'?'btn-success':'btn-outline-success' ?>">
+            <i class="bi bi-stars"></i> มาใหม่ (3 วัน)
+          </a>
+        </div>
+
+        <!-- หมวดหมู่ -->
         <div class="list-group">
-          <a href="products.php" class="list-group-item list-group-item-action <?=$cat==0?'active':''?>">ทั้งหมด</a>
+          <?php
+            // คงค่าพารามิเตอร์อื่น ๆ ไว้เสมอเวลาเปลี่ยนหมวด
+            $qsAll = array_merge($_GET, ['cat'=>0,'page'=>1]);
+          ?>
+          <a href="products.php?<?= http_build_query($qsAll) ?>"
+             class="list-group-item list-group-item-action <?= $cat==0?'active':'' ?>">หมวดหมู่ทั้งหมด</a>
+
           <?php foreach($cats as $c): ?>
-            <a href="products.php?cat=<?=$c['id']?>&q=<?=urlencode($q)?>" class="list-group-item list-group-item-action <?=$cat==$c['id']?'active':''?>">
+            <?php $qs = array_merge($_GET, ['cat'=>$c['id'],'page'=>1]); ?>
+            <a href="products.php?<?= http_build_query($qs) ?>"
+               class="list-group-item list-group-item-action <?= $cat==$c['id']?'active':'' ?>">
               <?=h($c['name'])?>
             </a>
           <?php endforeach; ?>
         </div>
+
         <div class="mt-3 small text-muted">แสดงผล: <?=count($products)?> / <?= (int)$total_rows ?> รายการ</div>
       </aside>
 
@@ -177,38 +229,38 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             <?php endforeach; ?>
           </div>
 
-          <!-- Pagination -->
           <?php if ($total_pages > 1): ?>
-            <nav aria-label="pagination" class="mt-4">
-              <ul class="pagination justify-content-center flex-wrap">
-                <li class="page-item <?= $page<=1?'disabled':'' ?>">
-                  <a class="page-link" href="<?= $page<=1?'#':h(page_link($page-1)) ?>">ก่อนหน้า</a>
-                </li>
-                <?php
-                  $start = max(1, $page-2);
-                  $end   = min($total_pages, $page+2);
-                  if ($start>1){
-                    echo '<li class="page-item"><a class="page-link" href="'.h(page_link(1)).'">1</a></li>';
-                    if ($start>2) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
-                  }
-                  for($p=$start;$p<=$end;$p++){
-                    $active = ($p==$page)?' active':'';
-                    echo '<li class="page-item'.$active.'"><a class="page-link" href="'.h(page_link($p)).'">'.$p.'</a></li>';
-                  }
-                  if ($end<$total_pages){
-                    if ($end<$total_pages-1) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
-                    echo '<li class="page-item"><a class="page-link" href="'.h(page_link($total_pages)).'">'.$total_pages.'</a></li>';
-                  }
-                ?>
-                <li class="page-item <?= $page>=$total_pages?'disabled':'' ?>">
-                  <a class="page-link" href="<?= $page>=$total_pages?'#':h(page_link($page+1)) ?>">ถัดไป</a>
-                </li>
-              </ul>
-              <div class="text-center text-muted small">
-                หน้า <?= (int)$page ?> / <?= (int)$total_pages ?> • ทั้งหมด <?= (int)$total_rows ?> รายการ
-              </div>
-            </nav>
-          <?php endif; ?>
+  <nav aria-label="pagination" class="mt-4 mb-4">
+    <ul class="pagination justify-content-center flex-wrap">
+      <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+        <a class="page-link" href="<?= ($page <= 1) ? '#' : h(page_link($page-1)) ?>">ก่อนหน้า</a>
+      </li>
+      <?php
+        $start = max(1, $page-2);
+        $end   = min($total_pages, $page+2);
+        if ($start > 1){
+          echo '<li class="page-item"><a class="page-link" href="'.h(page_link(1)).'">1</a></li>';
+          if ($start > 2) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
+        }
+        for ($p=$start; $p<=$end; $p++){
+          $active = ($p==$page) ? ' active' : '';
+          echo '<li class="page-item'.$active.'"><a class="page-link" href="'.h(page_link($p)).'">'.$p.'</a></li>';
+        }
+        if ($end < $total_pages){
+          if ($end < $total_pages-1) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
+          echo '<li class="page-item"><a class="page-link" href="'.h(page_link($total_pages)).'">'.$total_pages.'</a></li>';
+        }
+      ?>
+      <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+        <a class="page-link" href="<?= ($page >= $total_pages) ? '#' : h(page_link($page+1)) ?>">ถัดไป</a>
+      </li>
+    </ul>
+    <div class="text-center text-muted small">
+      หน้า <?= (int)$page ?> / <?= (int)$total_pages ?> • ทั้งหมด <?= (int)$total_rows ?> รายการ
+    </div>
+  </nav>
+<?php endif; ?>
+
 
         <?php endif; ?>
       </div>
@@ -238,7 +290,6 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 document.addEventListener('click', async (e)=>{
   const btn = e.target.closest('button[data-product-id]');

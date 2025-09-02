@@ -306,7 +306,6 @@ $saved = isset($_GET['saved']); // สำหรับโชว์เอฟเฟ
   <div class="success-circle"><i class="bi bi-check-lg"></i></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // พรีวิวรูป
 document.getElementById('avatarInput')?.addEventListener('change', (e)=>{

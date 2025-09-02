@@ -202,18 +202,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'expir
   }
 }
 
-// ---------- ค่าที่ใช้ในวงกลมเวลา ----------
-$minutes_window = 15;
+// ---------- ค่าที่ใช้ในตัวจับเวลาใหม่ (ไม่มีวงกลมแล้ว) ----------
 $created_ts  = strtotime($order['created_at']);
 $expires_ts  = $order['expires_at'] ? strtotime($order['expires_at'])
                                     : ($created_ts + $minutes_window*60);
 $now_ts      = time();
 $total_all   = max(1, $expires_ts - $created_ts);
 $remaining   = max(0, $expires_ts - $now_ts);
-$used        = $total_all - $remaining;
-$r     = 150;
-$circ  = 2 * M_PI * $r;
-$initial_offset = ($used / $total_all) * $circ;
 
 // ---------- เวลา redirect หลังอัปโหลดสำเร็จ ----------
 $seconds_to_redirect = 8;
@@ -235,15 +230,30 @@ $seconds_to_redirect = 8;
     .qr-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #eef2f6;background:#fbfdff}
     .qr-badge{background:#e8f1ff;border:1px solid #bcd4ff;color:#0b5ed7;border-radius:999px;padding:.35rem .75rem;font-weight:600}
     .muted{color:#6b7280}
-    .qr-wrap{position:relative;width:280px;height:280px;margin:16px auto}
-    .qr-img{position:absolute;inset:40px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;border:1px solid #e9edf3;box-shadow:0 10px 30px rgba(2,6,23,.08)}
+    .qr-wrap{position:relative;width:280px;min-height:280px;margin:16px auto; padding-top:18px}
+    .qr-img{position:relative;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;border:1px solid #e9edf3;box-shadow:0 10px 30px rgba(2,6,23,.08); min-height:280px}
     .qr-img img{width:100%;height:100%;object-fit:contain;border-radius:10px;padding:6px}
-    .timer{position:absolute;inset:0}
-    .timer .bg{stroke:#e7eef7}
-    .timer .fg{stroke:#2563eb;transition:stroke-dashoffset .25s linear}
-    .timer-text{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-weight:700;color:#2563eb}
     .disabled-cover{position:absolute;inset:0;background:rgba(255,255,255,.88);display:flex;align-items:center;justify-content:center;font-weight:700;border-radius:0}
     .card{border-radius:16px;border:1px solid #e9eef3}
+
+    /* ====== ตัวจับเวลาแบบใหม่ ====== */
+    .time-pill{
+      position:absolute; left:50%; transform:translateX(-50%);
+      top:-10px; background:#0b5ed7; color:#fff;
+      padding:.35rem .75rem; border-radius:999px;
+      font-weight:700; font-size:.95rem; box-shadow:0 6px 20px rgba(13,110,253,.18);
+      display:inline-flex; align-items:center; gap:.25rem; z-index:2;
+      border:1px solid rgba(255,255,255,.6);
+    }
+    .timebar{height:10px; background:#eef2f7; border:1px solid #e5ecf6;
+      border-radius:999px; overflow:hidden; box-shadow:inset 0 1px 2px rgba(0,0,0,.03);
+    }
+    .timebar-fill{
+      height:100%;
+      background:linear-gradient(90deg, var(--bs-primary,#0d6efd), var(--bs-info,#0dcaf0));
+      width:0%;
+      transition:width .25s linear;
+    }
 
     /* ====== ส่วน “อัปโหลดสำเร็จ → รอตรวจสอบ” ====== */
     :root{ --brand: var(--bs-primary, #0d6efd); --brand-2: var(--bs-success, #198754); --accent: var(--bs-info, #0dcaf0); }
@@ -347,20 +357,14 @@ $seconds_to_redirect = 8;
 
         <div class="p-3 position-relative" id="qrBox">
           <div class="qr-wrap">
-            <svg class="timer" viewBox="0 0 320 320">
-              <circle class="bg" cx="160" cy="160" r="<?= $r ?>" fill="none" stroke-width="10"></circle>
-              <circle
-                id="timerFg"
-                class="fg"
-                cx="160" cy="160" r="<?= $r ?>" fill="none" stroke-width="10"
-                stroke-linecap="round"
-                stroke-dasharray="<?= $circ ?>"
-                stroke-dashoffset="<?= $initial_offset ?>"
-                data-circ="<?= $circ ?>"
-                data-total="<?= $total_all ?>"
-              ></circle>
-            </svg>
 
+            <!-- ใหม่: แคปซูลเวลา -->
+            <div class="time-pill" id="timePill">
+              <i class="bi bi-clock-history me-1"></i>
+              <span id="mm">--</span>:<span id="ss">--</span>
+            </div>
+
+            <!-- QR -->
             <div class="qr-img">
               <?php if ($order['payment_method'] !== 'bank'): ?>
                 <div class="text-center p-3">
@@ -382,7 +386,11 @@ $seconds_to_redirect = 8;
               <?php endif; ?>
             </div>
 
-            <div class="timer-text"><span id="mm">--</span>:<span id="ss">--</span></div>
+            <!-- Progress bar -->
+            <div class="timebar mt-3" aria-label="progress">
+              <div class="timebar-fill" id="timebarFill" style="width:0%"></div>
+            </div>
+
           </div>
 
           <?php if ($remaining <= 0): ?>
@@ -433,31 +441,27 @@ $seconds_to_redirect = 8;
       let remaining = <?= (int)$remaining ?>;
       const total   = <?= (int)$total_all ?>;
 
-      const fg        = document.getElementById('timerFg');
       const mm        = document.getElementById('mm');
       const ss        = document.getElementById('ss');
+      const fill      = document.getElementById('timebarFill');
       const slipInput = document.getElementById('slipInput');
       const btnUpload = document.getElementById('btnUpload');
       const qrBox     = document.getElementById('qrBox');
-      if (!fg || !mm || !ss) return;
 
-      const circ = parseFloat(fg.dataset.circ || fg.getAttribute('stroke-dasharray')) || 1;
-
-      function setOffset(rem){
-        const used = Math.min(total, Math.max(0, total - rem));
-        const offset = (used / total) * circ;
-        fg.style.strokeDashoffset = String(offset);
-      }
+      if (!mm || !ss || !fill) return;
 
       function render(){
         const m = Math.floor(remaining/60);
         const s = remaining%60;
         mm.textContent = String(m).padStart(2,'0');
         ss.textContent = String(s).padStart(2,'0');
-        setOffset(remaining);
+
+        const pct = Math.min(100, Math.max(0, ((total - remaining)/total)*100));
+        fill.style.width = pct + '%';
 
         if (remaining <= 0){
-          slipInput && (slipInput.disabled = true);
+          // ล็อกอัปโหลด + ปิด QR
+          if (slipInput) slipInput.disabled = true;
           if (btnUpload){ btnUpload.disabled = true; btnUpload.classList.add('disabled'); }
           document.getElementById('qrImg')?.remove();
           const cover = document.createElement('div');
@@ -465,6 +469,7 @@ $seconds_to_redirect = 8;
           cover.textContent = 'หมดเวลาการชำระ';
           qrBox?.appendChild(cover);
 
+          // แจ้งหมดอายุไปที่เซิร์ฟเวอร์
           fetch(location.pathname + '?id=' + <?= (int)$order_id ?>, {
             method:'POST',
             headers:{'Content-Type':'application/x-www-form-urlencoded'},
@@ -474,12 +479,10 @@ $seconds_to_redirect = 8;
         }
       }
 
-      const oldTransition = fg.style.transition;
-      fg.style.transition = 'none';
+      // แสดงค่าตั้งต้น
       render();
-      void fg.getBoundingClientRect();
-      fg.style.transition = oldTransition || 'stroke-dashoffset .25s linear';
 
+      // เดินเวลาเฉพาะกรณีโอนธนาคาร
       if (pm !== 'bank') return;
       const tick = setInterval(()=>{ remaining = Math.max(0, remaining - 1); render(); }, 1000);
     })();

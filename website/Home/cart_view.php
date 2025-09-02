@@ -9,26 +9,6 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = (int)$_SESSION['user_id'];
 
-// ดึงข้อมูลสินค้าในตะกร้า
-$sql = "SELECT ci.id, ci.quantity, p.name, p.price, p.discount_price, p.image
-        FROM cart_items ci
-        JOIN products p ON p.id = ci.product_id
-        WHERE ci.user_id = ?";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$items = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
-require __DIR__ . '/includes/db.php';
-
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php?redirect=cart_view.php");
-    exit;
-}
-
-$user_id = (int)$_SESSION['user_id'];
-
 $sql = "SELECT ci.id, ci.product_id, ci.quantity, p.name, p.price, p.discount_price, p.image, p.stock
         FROM cart_items ci
         JOIN products p ON p.id = ci.product_id
@@ -50,9 +30,11 @@ function baht($n){ return number_format((float)$n, 2); }
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css">
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100"><!-- ✅ flex layout -->
+
 <?php include __DIR__.'/includes/header.php'; ?>
 
+<main class="flex-grow-1"><!-- ✅ main ครอบคอนเทนต์ -->
 <div class="container py-5">
   <h3 class="mb-4"><i class="bi bi-cart3"></i> รถเข็นของฉัน</h3>
 
@@ -86,7 +68,7 @@ function baht($n){ return number_format((float)$n, 2); }
             </div>
           </td>
 
-          <!-- จำนวน: − / แสดงจำนวน / +  -->
+          <!-- จำนวน -->
           <td class="text-center">
             <div class="d-inline-flex align-items-center">
               <!-- − -->
@@ -96,7 +78,7 @@ function baht($n){ return number_format((float)$n, 2); }
                 <button class="btn btn-outline-secondary btn-sm" <?= $it['quantity']<=1 ? 'disabled':'' ?>>−</button>
               </form>
 
-              <!-- ช่องจำนวนแก้ไขเอง -->
+              <!-- input -->
               <form action="cart_update.php" method="post" class="d-inline-flex">
                 <input type="hidden" name="id" value="<?= (int)$it['id'] ?>">
                 <input type="number" name="qty"
@@ -119,10 +101,8 @@ function baht($n){ return number_format((float)$n, 2); }
           <td class="text-end"><?= baht($price) ?> ฿</td>
           <td class="text-end"><?= baht($sum) ?> ฿</td>
           <td class="text-end">
-        <a href="javascript:void(0)" class="btn btn-sm btn-outline-danger btn-remove" data-product-id="<?= (int)$it['product_id'] ?>">
-  <i class="bi bi-trash"></i>
-</a>
-              
+            <a href="javascript:void(0)" class="btn btn-sm btn-outline-danger btn-remove" data-product-id="<?= (int)$it['product_id'] ?>">
+              <i class="bi bi-trash"></i>
             </a>
           </td>
         </tr>
@@ -143,14 +123,15 @@ function baht($n){ return number_format((float)$n, 2); }
     </div>
   <?php endif; ?>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> <!-- ใช้ SweetAlert2 -->
+</main><!-- ✅ ปิด main -->
 
+<?php include __DIR__.'/assets/html/footer.html'; ?>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('.btn-remove');
   if(!btn) return;
-
   const pid = btn.dataset.productId;
 
   try {
@@ -162,11 +143,9 @@ document.addEventListener('click', async (e) => {
     const data = await res.json();
 
     if(data.status === 'success'){
-      // ลบแถวสินค้าออกจาก DOM
       const row = btn.closest('tr');
       row.remove();
 
-      // ✅ เช็คว่ามีสินค้าเหลือใน tbody มั้ย
       const tbody = document.querySelector('table tbody');
       if(tbody && tbody.children.length === 0){
         document.querySelector('table').remove();
@@ -174,7 +153,6 @@ document.addEventListener('click', async (e) => {
           '<div class="alert alert-info">ยังไม่มีสินค้าในรถเข็น</div>'
         );
       } else {
-        // ✅ อัปเดตรวมใหม่
         let total = 0;
         document.querySelectorAll('table tbody tr').forEach(tr=>{
           const sumCell = tr.querySelector('td:nth-child(4)');
@@ -186,32 +164,16 @@ document.addEventListener('click', async (e) => {
         document.querySelector('tfoot th.text-end').textContent = total.toLocaleString()+' ฿';
       }
 
-      // Toast ล่างขวา
-      Swal.fire({
-        toast: true,
-        position: 'bottom-end',
-        icon: 'error',
-        title: 'ลบสินค้าออกแล้ว',
-        showConfirmButton: false,
-        timer: 2000,
-        timerProgressBar: true
-      });
-
-      // อัปเดต badge รถเข็น (ถ้ามี)
+      Swal.fire({toast:true,position:'bottom-end',icon:'error',title:'ลบสินค้าออกแล้ว',showConfirmButton:false,timer:2000,timerProgressBar:true});
       if(document.getElementById('cart-count')){
         document.getElementById('cart-count').textContent = data.cart_count;
       }
-    } else {
-      alert(data.message || 'ลบไม่สำเร็จ');
     }
   } catch(err){
     console.error(err);
     alert('เกิดข้อผิดพลาด');
   }
 });
-
 </script>
-
-<?php include __DIR__.'/assets/html/footer.html'; ?>
 </body>
 </html>
