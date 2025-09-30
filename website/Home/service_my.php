@@ -1,6 +1,12 @@
 <?php
 // Home/service_my.php
 if (session_status()===PHP_SESSION_NONE){ session_start(); }
+
+/* กันแคช: เวลาแอดมินอัปเดตสถานะ/เร่งด่วน ให้หน้านี้เห็นค่าล่าสุดเสมอ */
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 require __DIR__ . '/includes/db.php';
 if (!isset($_SESSION['user_id'])) { header('Location: login.php?redirect=service_my.php'); exit; }
 
@@ -15,12 +21,7 @@ function fallback_data_uri(): string {
   return 'data:image/svg+xml;utf8,'.rawurlencode($svg);
 }
 
-/**
- * คืนพาธรูปที่ใช้ได้จริง:
- * - url/data-uri => คืนเลย
- * - ชื่อไฟล์ล้วน  => เติม assets/img/
- * - ถ้าไม่พบไฟล์ => ใช้รูป default ในโปรเจกต์ ถ้าไม่มี ใช้ data-uri
- */
+/** พาธรูปให้รอดเสมอ */
 function thumb_path(?string $val): string {
   $v = trim((string)$val);
   if ($v === '') {
@@ -30,28 +31,50 @@ function thumb_path(?string $val): string {
     return fallback_data_uri();
   }
   if (preg_match('~^(https?://|data:image/)~i', $v)) return $v;
-
   $rel = (strpos($v, '/') !== false) ? $v : ('assets/img/'.$v);
   if (is_file(__DIR__.'/'.$rel)) return $rel;
-
-  // ถ้าไม่เจอไฟล์จริง ให้ลอง fallback โลคัลก่อน
   foreach (['assets/img/no-image.png','assets/img/default.png'] as $cand) {
     if (is_file(__DIR__.'/'.$cand)) return $cand;
   }
   return fallback_data_uri();
 }
 
+/** ✅ normalize ค่าความเร่งด่วนให้เหลือ normal/urgent (รองรับ true/false, 0/1, ไทย/อังกฤษ) */
+function norm_urgency($v): string {
+  $s = strtolower(trim((string)$v));
+  if ($s === '' || $s === '0' || $s === 'false' || $s === 'normal' || $s === 'ปกติ') return 'normal';
+  if (in_array($s, ['urgent','ด่วน','เร่งด่วน','1','true'], true)) return 'urgent';
+  return 'normal';
+}
+$urgencyLabel = ['normal'=>'ปกติ','urgent'=>'เร่งด่วน'];
+$urgencyClass = ['normal'=>'secondary','urgent'=>'danger'];
+
+/** แปลง need ของเทิร์นเป็นไทยให้สวย */
+function map_need($v): string {
+  $v = trim((string)$v);
+  $map = ['buy_new'=>'เทิร์นซื้อใหม่', 'cash'=>'ขายรับเงินสด'];
+  return $map[$v] ?? $v;
+}
+
 $uid = (int)$_SESSION['user_id'];
 
 $repair = $tradein = [];
 
-/* ===== ซ่อมของฉัน ===== */
+/* ===== ซ่อมของฉัน (ดึงสถานะจาก log ล่าสุด) ===== */
 if ($st = $conn->prepare("
-  SELECT id, device_type, brand, model, phone, desired_date, urgency, status,
-         image_path, created_at, updated_at
-  FROM service_tickets
-  WHERE user_id=?
-  ORDER BY updated_at DESC, id DESC
+  SELECT
+    st.id, st.device_type, st.brand, st.model, st.phone,
+    st.desired_date, st.urgency, st.image_path, st.created_at, st.updated_at,
+    COALESCE(
+      (SELECT l.status FROM service_status_logs l
+       WHERE l.ticket_id = st.id
+       ORDER BY l.id DESC
+       LIMIT 1),
+      st.status
+    ) AS status_eff
+  FROM service_tickets st
+  WHERE st.user_id=?
+  ORDER BY st.updated_at DESC, st.id DESC
 ")) {
   $st->bind_param('i', $uid);
   $st->execute();
@@ -59,8 +82,8 @@ if ($st = $conn->prepare("
   $st->close();
 }
 
-/* ===== เทิร์นของฉัน =====
-   ถ้า tr.image_path ว่าง ให้ประกอบพาธรูปปกจาก tradein_images ตั้งแต่ใน SQL */
+
+/* ===== เทิร์นของฉัน ===== (เติมรูปปกจาก tradein_images ถ้า image_path ว่าง) */
 if ($st = $conn->prepare("
   SELECT
     tr.id,
@@ -70,11 +93,9 @@ if ($st = $conn->prepare("
     CASE
       WHEN tr.image_path IS NOT NULL AND tr.image_path <> '' THEN tr.image_path
       ELSE CONCAT('assets/img/', (
-        SELECT ti.filename
-        FROM tradein_images ti
+        SELECT ti.filename FROM tradein_images ti
         WHERE ti.request_id = tr.id AND ti.is_cover = 1
-        ORDER BY ti.id ASC
-        LIMIT 1
+        ORDER BY ti.id ASC LIMIT 1
       ))
     END AS image_path,
     tr.created_at, tr.updated_at
@@ -132,6 +153,8 @@ $tradeStatusClass = [
     #servicePage .thumb{width:46px;height:46px;border-radius:10px;object-fit:cover;border:1px solid #e6edf6;background:#fff}
     #servicePage .badge{padding:.45rem .6rem;font-weight:700}
     #servicePage .tag-soft{display:inline-flex;align-items:center;gap:.35rem;background:#eef2f7;border:1px solid #e5ecf6;border-radius:999px;padding:.2rem .55rem;font-weight:600}
+    /* ไฮไลท์แถวเร่งด่วน */
+    #servicePage tr.row-urgent{box-shadow: inset 0 0 0 9999px rgba(255, 0, 0, .02);}
     @media (max-width: 992px){
       #servicePage .table-modern thead{display:none}
       #servicePage .table-modern tbody tr{display:block;margin:12px;border:1px solid #e9eef3;border-radius:14px;padding:.75rem;background:#fff}
@@ -176,13 +199,14 @@ $tradeStatusClass = [
           <?php if(empty($repair)): ?>
             <tr><td colspan="7" class="text-center text-muted py-4">ยังไม่มีงานซ่อม</td></tr>
           <?php else: foreach($repair as $r):
-            $img = thumb_path($r['image_path'] ?? '');
-            $urgent = ($r['urgency'] ?? 'normal')==='urgent';
-            $rsKey = $r['status'] ?? '';
-            $rsClass = $repairStatusClass[$rsKey] ?? 'secondary';
-            $rsText  = $repairStatusMap[$rsKey] ?? $rsKey;
-          ?>
-            <tr>
+              $img   = thumb_path($r['image_path'] ?? '');
+              $u     = norm_urgency($r['urgency'] ?? 'normal');
+              $rsKey = $r['status_eff'] ?? ($r['status'] ?? '');   // ← ใช้ค่าจาก log ล่าสุด
+              $rsClass = $repairStatusClass[$rsKey] ?? 'secondary';
+              $rsText  = $repairStatusMap[$rsKey] ?? $rsKey;
+              $rowCls  = ($u==='urgent') ? 'row-urgent' : '';
+            ?>
+            <tr class="<?= $rowCls ?>">
               <td data-label="#"><span class="fw-semibold">ST-<?= (int)$r['id'] ?></span></td>
               <td data-label="อุปกรณ์">
                 <div class="d-flex align-items-center gap-3">
@@ -199,11 +223,10 @@ $tradeStatusClass = [
                 <?php else: ?><span class="text-muted">-</span><?php endif; ?>
               </td>
               <td data-label="เร่งด่วน">
-                <?php if($urgent): ?>
-                  <span class="badge bg-danger"><i class="bi bi-lightning-charge"></i> ด่วน</span>
-                <?php else: ?>
-                  <span class="badge bg-secondary">ปกติ</span>
-                <?php endif; ?>
+                <span class="badge bg-<?= $urgencyClass[$u] ?>">
+                  <?php if($u==='urgent'): ?><i class="bi bi-lightning-charge"></i> <?php endif; ?>
+                  <?= h($urgencyLabel[$u]) ?>
+                </span>
               </td>
               <td data-label="สถานะ"><span class="badge bg-<?= $rsClass ?>"><?= h($rsText) ?></span></td>
               <td data-label="อัปเดตล่าสุด" class="small text-muted"><?= h($r['updated_at']) ?></td>
@@ -261,7 +284,7 @@ $tradeStatusClass = [
               </td>
               <td data-label="ความต้องการ">
                 <?php if(!empty($t['need'])): ?>
-                  <span class="tag-soft"><i class="bi bi-bag-plus"></i> <?= h($t['need']) ?></span>
+                  <span class="tag-soft"><i class="bi bi-bag-plus"></i> <?= h(map_need($t['need'])) ?></span>
                 <?php else: ?><span class="text-muted">-</span><?php endif; ?>
               </td>
               <td data-label="ราคาเสนอ">

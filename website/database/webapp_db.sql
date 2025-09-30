@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 26, 2025 at 09:58 PM
+-- Generation Time: Sep 26, 2025 at 09:43 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -54,7 +54,7 @@ CREATE TABLE `cart_items` (
 --
 
 INSERT INTO `cart_items` (`id`, `user_id`, `product_id`, `quantity`, `created_at`) VALUES
-(101, 4, 19, 1, '2025-08-24 19:24:05');
+(201, 4, 10, 1, '2025-09-05 09:38:51');
 
 -- --------------------------------------------------------
 
@@ -212,16 +212,63 @@ INSERT INTO `notifications` (`id`, `user_id`, `type`, `ref_id`, `title`, `messag
 (111, 4, 'support_msg', 11, 'แอดมินตอบกลับข้อความ', 'ครับผม', 1, '2025-08-24 19:15:06'),
 (112, 4, 'support_end', 0, 'สิ้นสุดการแชท', 'คุณได้สิ้นสุดการสนทนาแล้ว สามารถเริ่มใหม่ได้ทุกเมื่อ', 1, '2025-08-24 19:15:17'),
 (113, 3, 'new_order_cod', 38, 'ออเดอร์ใหม่ (ปลายทาง)', 'คำสั่งซื้อ #38 จาก user', 1, '2025-08-24 19:24:11'),
-(114, 4, 'order_status', 38, 'สั่งซื้อสำเร็จ', 'คำสั่งซื้อ #38 ชำระแบบเก็บเงินปลายทาง', 0, '2025-08-24 19:24:11'),
-(115, 4, 'order_status', 38, 'คำสั่งซื้อ #38: ยกเลิก', 'คำสั่งซื้อ #38: ยกเลิก', 0, '2025-08-24 19:24:22'),
+(114, 4, 'order_status', 38, 'สั่งซื้อสำเร็จ', 'คำสั่งซื้อ #38 ชำระแบบเก็บเงินปลายทาง', 1, '2025-08-24 19:24:11'),
+(115, 4, 'order_status', 38, 'คำสั่งซื้อ #38: ยกเลิก', 'คำสั่งซื้อ #38: ยกเลิก', 1, '2025-08-24 19:24:22'),
 (116, 3, 'new_order_bank', 39, 'ออเดอร์ใหม่ (โอนธนาคาร)', 'คำสั่งซื้อ #39 จาก user • รอชำระเงิน ภายใน 25/08/2025 02:39', 1, '2025-08-24 19:24:43'),
-(117, 4, 'payment_status', 39, 'สั่งซื้อสำเร็จ - กรุณาโอนเงิน', 'คำสั่งซื้อ #39 ภายใน 25/08/2025 02:39 และอัปโหลดสลิปในหน้า ‘คำสั่งซื้อของฉัน’', 0, '2025-08-24 19:24:43'),
+(117, 4, 'payment_status', 39, 'สั่งซื้อสำเร็จ - กรุณาโอนเงิน', 'คำสั่งซื้อ #39 ภายใน 25/08/2025 02:39 และอัปโหลดสลิปในหน้า ‘คำสั่งซื้อของฉัน’', 1, '2025-08-24 19:24:43'),
 (118, 3, 'support_msg', 12, 'มีข้อความใหม่จากลูกค้า', 'UID 4: สวัสดีครับ', 1, '2025-08-24 19:25:02'),
-(119, 4, 'support_msg', 13, 'แอดมินตอบกลับข้อความ', 'ควยไร', 0, '2025-08-24 19:25:22'),
-(120, 4, 'support_end', 0, 'สิ้นสุดการแชท', 'คุณได้สิ้นสุดการสนทนาแล้ว สามารถเริ่มใหม่ได้ทุกเมื่อ', 0, '2025-08-24 19:25:33'),
-(121, 4, 'payment_status', 39, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #39 สถานะการชำระเงิน: ชำระแล้ว', 0, '2025-08-26 18:01:53'),
-(122, 4, 'order_status', 39, 'คำสั่งซื้อ #39: ยกเลิก', 'คำสั่งซื้อ #39: ยกเลิก', 0, '2025-08-26 18:01:56'),
-(123, 4, 'payment_status', 39, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #39 สถานะการชำระเงิน: ยังไม่ชำระ', 0, '2025-08-26 18:01:57');
+(119, 4, 'support_msg', 13, 'แอดมินตอบกลับข้อความ', 'ควยไร', 1, '2025-08-24 19:25:22'),
+(120, 4, 'support_end', 0, 'สิ้นสุดการแชท', 'คุณได้สิ้นสุดการสนทนาแล้ว สามารถเริ่มใหม่ได้ทุกเมื่อ', 1, '2025-08-24 19:25:33'),
+(121, 4, 'payment_status', 39, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #39 สถานะการชำระเงิน: ชำระแล้ว', 1, '2025-08-26 18:01:53'),
+(122, 4, 'order_status', 39, 'คำสั่งซื้อ #39: ยกเลิก', 'คำสั่งซื้อ #39: ยกเลิก', 1, '2025-08-26 18:01:56'),
+(123, 4, 'payment_status', 39, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #39 สถานะการชำระเงิน: ยังไม่ชำระ', 1, '2025-08-26 18:01:57'),
+(124, 4, 'payment_status', 39, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #39 สถานะการชำระเงิน: รอตรวจสอบ', 1, '2025-09-02 15:18:11'),
+(125, 4, 'payment_status', 39, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #39 สถานะการชำระเงิน: ชำระแล้ว', 1, '2025-09-02 15:18:15'),
+(126, 4, 'payment_status', 39, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #39 สถานะการชำระเงิน: ยังไม่ชำระ', 1, '2025-09-02 15:18:17'),
+(127, 3, 'new_order_bank', 40, 'ออเดอร์ใหม่ (โอนธนาคาร)', 'คำสั่งซื้อ #40 จาก user • รอชำระเงิน ภายใน 02/09/2025 23:59', 1, '2025-09-02 16:44:01'),
+(128, 4, 'payment_status', 40, 'สั่งซื้อสำเร็จ - กรุณาโอนเงิน', 'คำสั่งซื้อ #40 ภายใน 02/09/2025 23:59 และอัปโหลดสลิปในหน้า ‘คำสั่งซื้อของฉัน’', 1, '2025-09-02 16:44:01'),
+(129, 4, 'order_status', 40, 'คำสั่งซื้อ #40: กำลังเตรียม/แพ็ค', 'คำสั่งซื้อ #40: กำลังเตรียม/แพ็ค', 1, '2025-09-02 16:52:07'),
+(130, 4, 'order_status', 40, 'คำสั่งซื้อ #40: ใหม่/กำลังตรวจสอบ', 'คำสั่งซื้อ #40: ใหม่/กำลังตรวจสอบ', 1, '2025-09-02 16:52:09'),
+(131, 4, 'payment_status', 40, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #40 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-02 16:59:56'),
+(132, 4, 'order_status', 40, 'คำสั่งซื้อ #40: ยกเลิก', 'คำสั่งซื้อ #40: ยกเลิก', 1, '2025-09-02 17:00:05'),
+(133, 4, 'payment_status', 40, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #40 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-02 17:00:07'),
+(134, 4, 'payment_status', 40, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #40 สถานะการชำระเงิน: รอตรวจสอบ', 1, '2025-09-02 17:00:09'),
+(135, 4, 'payment_status', 40, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #40 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-02 17:00:10'),
+(136, 4, 'payment_status', 40, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #40 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-02 17:04:39'),
+(137, 4, 'payment_status', 37, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #37 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-02 17:04:43'),
+(138, 4, 'payment_status', 36, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #36 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-02 17:04:44'),
+(139, 4, 'payment_status', 35, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #35 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-02 17:04:45'),
+(140, 4, 'payment_status', 13, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #13 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-02 17:04:50'),
+(141, 4, 'payment_status', 10, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #10 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-02 17:04:52'),
+(142, 4, 'payment_status', 9, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #9 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-02 17:04:54'),
+(143, 4, 'payment_status', 8, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #8 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-02 17:04:55'),
+(144, 3, 'new_order_bank', 41, 'ออเดอร์ใหม่ (โอนธนาคาร)', 'คำสั่งซื้อ #41 จาก user • รอชำระเงิน ภายใน 03/09/2025 00:23', 1, '2025-09-02 17:08:59'),
+(145, 4, 'payment_status', 41, 'สั่งซื้อสำเร็จ - กรุณาโอนเงิน', 'คำสั่งซื้อ #41 ภายใน 03/09/2025 00:23 และอัปโหลดสลิปในหน้า ‘คำสั่งซื้อของฉัน’', 1, '2025-09-02 17:08:59'),
+(146, 3, 'support_msg', 14, 'มีข้อความใหม่จากลูกค้า', 'UID 4: สวัสดีครับ', 1, '2025-09-02 19:09:14'),
+(147, 4, 'support_msg', 15, 'แอดมินตอบกลับข้อความ', 'ครับผม', 1, '2025-09-02 19:10:05'),
+(148, 4, 'payment_status', 41, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #41 สถานะการชำระเงิน: รอตรวจสอบ', 1, '2025-09-03 09:17:42'),
+(149, 4, 'payment_status', 41, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #41 สถานะการชำระเงิน: ชำระแล้ว', 1, '2025-09-03 09:17:45'),
+(150, 4, 'order_status', 41, 'คำสั่งซื้อ #41: กำลังเตรียม/แพ็ค', 'คำสั่งซื้อ #41: กำลังเตรียม/แพ็ค', 1, '2025-09-03 09:17:48'),
+(151, 4, 'order_status', 41, 'คำสั่งซื้อ #41: ส่งออกจากคลัง', 'คำสั่งซื้อ #41: ส่งออกจากคลัง', 1, '2025-09-03 09:17:51'),
+(152, 4, 'order_status', 41, 'คำสั่งซื้อ #41: ยกเลิก', 'คำสั่งซื้อ #41: ยกเลิก', 1, '2025-09-03 09:17:54'),
+(153, 4, 'payment_status', 41, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #41 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-03 09:17:57'),
+(154, 3, 'new_order_bank', 42, 'ออเดอร์ใหม่ (โอนธนาคาร)', 'คำสั่งซื้อ #42 จาก user • รอชำระเงิน ภายใน 03/09/2025 17:14', 1, '2025-09-03 09:59:13'),
+(155, 4, 'payment_status', 42, 'สั่งซื้อสำเร็จ - กรุณาโอนเงิน', 'คำสั่งซื้อ #42 ภายใน 03/09/2025 17:14 และอัปโหลดสลิปในหน้า ‘คำสั่งซื้อของฉัน’', 1, '2025-09-03 09:59:13'),
+(156, 3, 'cancel_request', 42, 'มีคำขอยกเลิกใหม่', 'คำสั่งซื้อ #42 จากผู้ใช้ user', 1, '2025-09-03 10:00:12'),
+(157, 4, 'order_status', 42, 'คำขอยกเลิกได้รับการอนุมัติ', 'คำสั่งซื้อ #42 ถูกยกเลิกเรียบร้อย', 1, '2025-09-03 10:00:32'),
+(158, 3, 'slip_uploaded', 42, 'มีสลิปใหม่รอตรวจสอบ', 'คำสั่งซื้อ #42 จากผู้ใช้ UID 4', 1, '2025-09-03 10:01:04'),
+(159, 4, 'payment_status', 42, 'รับสลิปแล้ว - รอตรวจสอบ', 'คำสั่งซื้อ #42 กำลังรอตรวจสอบสลิป', 1, '2025-09-03 10:01:04'),
+(160, 4, 'payment_status', 42, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #42 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-03 10:02:00'),
+(161, 4, 'support_end', 0, 'สิ้นสุดการแชท', 'คุณได้สิ้นสุดการสนทนาแล้ว สามารถเริ่มใหม่ได้ทุกเมื่อ', 1, '2025-09-05 09:21:21'),
+(162, 3, 'new_order_bank', 43, 'ออเดอร์ใหม่ (โอนธนาคาร)', 'คำสั่งซื้อ #43 จาก user • รอชำระเงิน ภายใน 05/09/2025 16:55', 1, '2025-09-05 09:40:47'),
+(163, 4, 'payment_status', 43, 'สั่งซื้อสำเร็จ - กรุณาโอนเงิน', 'คำสั่งซื้อ #43 ภายใน 05/09/2025 16:55 และอัปโหลดสลิปในหน้า ‘คำสั่งซื้อของฉัน’', 1, '2025-09-05 09:40:47'),
+(164, 3, 'slip_uploaded', 43, 'มีสลิปใหม่รอตรวจสอบ', 'คำสั่งซื้อ #43 จากผู้ใช้ UID 4', 1, '2025-09-05 09:41:04'),
+(165, 4, 'payment_status', 43, 'รับสลิปแล้ว - รอตรวจสอบ', 'คำสั่งซื้อ #43 กำลังรอตรวจสอบสลิป', 1, '2025-09-05 09:41:04'),
+(166, 4, 'payment_status', 43, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #43 สถานะการชำระเงิน: ยังไม่ชำระ', 1, '2025-09-05 09:41:38'),
+(167, 4, 'order_status', 43, 'คำสั่งซื้อ #43: ยกเลิก', 'คำสั่งซื้อ #43: ยกเลิก', 1, '2025-09-05 09:41:39'),
+(168, 4, 'payment_status', 43, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #43 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-05 09:41:40'),
+(169, 4, 'schedule_proposed', 9, 'มีข้อเสนอเวลานัดใหม่', 'แอดมินเสนอเวลา: 2025-09-07 13:50:00 - 2025-09-07 15:20:00', 0, '2025-09-05 18:01:54'),
+(170, 3, 'schedule_confirmed', 9, 'ลูกค้ายืนยันเวลานัด', 'ลูกค้ายืนยันเวลานัดของใบงาน ST-9', 1, '2025-09-05 18:02:59');
 
 -- --------------------------------------------------------
 
@@ -234,7 +281,7 @@ CREATE TABLE `orders` (
   `user_id` bigint(20) UNSIGNED NOT NULL,
   `total_price` decimal(10,2) NOT NULL DEFAULT 0.00,
   `status` enum('pending','processing','shipped','delivered','completed','cancel_requested','cancelled') NOT NULL DEFAULT 'pending',
-  `payment_status` enum('unpaid','pending','paid','refunded') NOT NULL DEFAULT 'unpaid',
+  `payment_status` enum('unpaid','pending','paid','refunded','expired') NOT NULL DEFAULT 'unpaid',
   `stock_deducted` tinyint(1) NOT NULL DEFAULT 0,
   `shipping_name` varchar(150) DEFAULT NULL,
   `shipping_phone` varchar(30) DEFAULT NULL,
@@ -260,12 +307,12 @@ INSERT INTO `orders` (`id`, `user_id`, `total_price`, `status`, `payment_status`
 (5, 4, 8790.00, 'cancelled', 'unpaid', 0, '1', '1', '1', '2025-08-20 17:07:37', '2025-08-21 00:22:37', '2025-08-22 08:29:07', 'cod', NULL, NULL, NULL),
 (6, 4, 8790.00, 'cancelled', 'unpaid', 0, '1', '1', 'ๅ', '2025-08-20 17:30:36', '2025-08-21 00:45:36', '2025-08-22 08:29:07', 'cod', NULL, NULL, NULL),
 (7, 4, 8790.00, 'cancelled', 'unpaid', 0, '1', '1', 'ๅ', '2025-08-20 17:31:10', '2025-08-21 00:46:10', '2025-08-22 08:29:07', 'bank', 'slip_7_1755711081_04c2b347.png', NULL, NULL),
-(8, 4, 8790.00, 'cancelled', '', 0, '1', '1', '1', '2025-08-22 03:00:52', '2025-08-22 10:15:52', '2025-08-22 08:29:07', 'bank', NULL, NULL, NULL),
-(9, 4, 626.00, 'cancelled', '', 0, '1', '1', '1', '2025-08-22 08:22:31', '2025-08-22 15:37:31', '2025-08-22 08:40:13', 'bank', NULL, NULL, NULL),
-(10, 4, 626.00, 'cancelled', '', 0, '1', '1', '1', '2025-08-22 08:44:42', '2025-08-22 15:59:42', '2025-08-22 09:33:20', 'bank', NULL, NULL, NULL),
+(8, 4, 8790.00, 'cancelled', 'expired', 0, '1', '1', '1', '2025-08-22 03:00:52', '2025-08-22 10:15:52', '2025-09-02 17:04:55', 'bank', NULL, NULL, NULL),
+(9, 4, 626.00, 'cancelled', 'expired', 0, '1', '1', '1', '2025-08-22 08:22:31', '2025-08-22 15:37:31', '2025-09-02 17:04:54', 'bank', NULL, NULL, NULL),
+(10, 4, 626.00, 'cancelled', 'expired', 0, '1', '1', '1', '2025-08-22 08:44:42', '2025-08-22 15:59:42', '2025-09-02 17:04:52', 'bank', NULL, NULL, NULL),
 (11, 4, 8790.00, 'cancelled', 'unpaid', 0, '1', '1', '1', '2025-08-22 08:45:25', '2025-08-22 16:00:25', '2025-08-22 09:33:10', 'cod', NULL, NULL, NULL),
 (12, 4, 626.00, 'cancelled', 'unpaid', 0, 'ๅ', 'ๅ', 'ๅ', '2025-08-22 09:05:20', NULL, '2025-08-22 09:33:07', 'cod', NULL, NULL, NULL),
-(13, 4, 8790.00, 'cancelled', '', 0, '1', '1', '1', '2025-08-22 09:05:31', '2025-08-22 16:20:31', '2025-08-22 09:41:46', 'bank', NULL, NULL, NULL),
+(13, 4, 8790.00, 'cancelled', 'expired', 0, '1', '1', '1', '2025-08-22 09:05:31', '2025-08-22 16:20:31', '2025-09-02 17:04:50', 'bank', NULL, NULL, NULL),
 (14, 4, 626.00, 'cancelled', 'unpaid', 0, '1', '1', '1', '2025-08-22 09:20:55', '2025-08-22 16:35:55', '2025-08-22 09:48:45', 'bank', 'slip_14_1755855123_9d05f315.png', NULL, NULL),
 (15, 4, 8790.00, 'cancelled', 'unpaid', 0, '1', 'ๅ', 'ๅ', '2025-08-22 09:34:26', NULL, '2025-08-22 09:41:18', 'cod', NULL, NULL, NULL),
 (16, 4, 8790.00, 'cancelled', 'unpaid', 0, 'ๅ', 'ๅ', 'ๅ', '2025-08-22 09:40:54', NULL, '2025-08-22 09:41:20', 'cod', NULL, NULL, NULL),
@@ -284,11 +331,15 @@ INSERT INTO `orders` (`id`, `user_id`, `total_price`, `status`, `payment_status`
 (31, 4, 1860.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-08-23 08:10:43', '2025-08-23 15:25:43', '2025-08-23 08:18:47', 'bank', 'slip_31_1755936658_bd3e4d82.png', NULL, NULL),
 (33, 4, 6995.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-08-23 08:24:29', '2025-08-23 15:39:29', '2025-08-23 08:57:05', 'bank', NULL, NULL, NULL),
 (34, 4, 1860.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-08-23 08:51:19', NULL, '2025-08-23 09:45:48', 'cod', NULL, NULL, NULL),
-(35, 4, 1860.00, 'cancelled', '', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-08-23 08:51:29', '2025-08-23 16:06:29', '2025-08-23 09:20:09', 'bank', NULL, NULL, NULL),
-(36, 4, 1860.00, 'cancelled', '', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-08-23 09:20:23', '2025-08-23 16:35:23', '2025-08-23 09:45:10', 'bank', NULL, NULL, NULL),
-(37, 4, 1860.00, 'cancelled', '', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-08-23 09:45:41', '2025-08-23 17:00:41', '2025-08-23 10:03:00', 'bank', NULL, NULL, NULL),
+(35, 4, 1860.00, 'cancelled', 'expired', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-08-23 08:51:29', '2025-08-23 16:06:29', '2025-09-02 17:04:45', 'bank', NULL, NULL, NULL),
+(36, 4, 1860.00, 'cancelled', 'expired', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-08-23 09:20:23', '2025-08-23 16:35:23', '2025-09-02 17:04:44', 'bank', NULL, NULL, NULL),
+(37, 4, 1860.00, 'cancelled', 'expired', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-08-23 09:45:41', '2025-08-23 17:00:41', '2025-09-02 17:04:42', 'bank', NULL, NULL, NULL),
 (38, 4, 1860.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-08-24 19:24:11', NULL, '2025-08-24 19:24:22', 'cod', NULL, NULL, NULL),
-(39, 4, 1860.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-08-24 19:24:43', '2025-08-25 02:39:43', '2025-08-26 18:01:57', 'bank', NULL, NULL, NULL);
+(39, 4, 1860.00, 'cancelled', 'unpaid', 1, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-08-24 19:24:43', '2025-08-25 02:39:43', '2025-09-02 15:18:17', 'bank', NULL, NULL, NULL),
+(40, 4, 1860.00, 'cancelled', 'expired', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-09-02 16:44:01', '2025-09-02 23:59:01', '2025-09-02 17:04:39', 'bank', NULL, NULL, NULL),
+(41, 4, 1860.00, 'cancelled', 'expired', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-09-02 17:08:59', '2025-09-03 00:23:59', '2025-09-03 09:17:57', 'bank', NULL, NULL, NULL),
+(42, 4, 8495.00, 'cancelled', 'expired', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-09-03 09:59:13', '2025-09-03 17:14:13', '2025-09-03 10:02:00', 'bank', 'slip_42_1756893664_6305f17b.png', 'กดผิด', '2025-09-03 10:00:12'),
+(43, 4, 1860.00, 'cancelled', 'expired', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-09-05 09:40:47', '2025-09-05 16:55:47', '2025-09-05 09:41:40', 'bank', 'slip_43_1757065264_b9604b82.png', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -344,7 +395,11 @@ INSERT INTO `order_items` (`id`, `order_id`, `product_id`, `quantity`, `unit_pri
 (36, 36, 19, 1, 1860.00),
 (37, 37, 19, 1, 1860.00),
 (38, 38, 19, 1, 1860.00),
-(39, 39, 19, 1, 1860.00);
+(39, 39, 19, 1, 1860.00),
+(40, 40, 19, 1, 1860.00),
+(41, 41, 19, 1, 1860.00),
+(42, 42, 17, 1, 8495.00),
+(43, 43, 19, 1, 1860.00);
 
 -- --------------------------------------------------------
 
@@ -385,7 +440,7 @@ INSERT INTO `products` (`id`, `category_id`, `seller_id`, `name`, `description`,
 (16, 1, NULL, 'เครื่องตัดหญ้ารถเข็น 2 จังหวะ MXR-LMG450 MAXMA', 'รายละเอียดสินค้า\r\n• เครื่องยนต์เบนซิน 2 จังหวะ 1 ลูกสูบ\r\n• ปริมาตรกระบอกสูบ 52cc\r\n• เส้นผ่านศูนย์กลางท่อ 26 มิล\r\n• ความเร็วรอบเดินเบา 2,800 RPM\r\n• ความเร็วรอบสูงสุดของใบมีด 9,000 - 10,000 รอบ/นาที(RPM)\r\n• ความจุถังน้ำมันเชื้อเพลิง 1.2 ลิตร \r\n• น้ำมันเชื่อเพลิง (เบนซิน : น้ำมัน 2T) 25:1\r\n• น้ำหนัก 16 kg \r\n• ขนาดบรรจุภัณฑ์ 66x51x35cm', 6995.00, NULL, 6, 'pd_20250822_174109_47c410ea.png', 'active', '2025-08-22 10:41:09', '2025-08-22 10:41:09'),
 (17, 1, NULL, 'รถเข็นตัดหญ้า 2 จังหวะ ปุ่มสตาร์ท MXR-BCW ES430 MAXMA', 'รายละเอียดสินค้า\r\n• เครื่องยนต์เบนซิน : 2 จังหวะ 1 ลูกสูบ\r\n• มีระบบ สตาร์ทอัตโนมัติโดยปุ่มกด\r\n• ปริมาตรกระบอกสูบ : 42.7cc\r\n• เส้นผ่านศูนย์กลางท่อ : 26 มิล\r\n• ความเร็วรอบเดินเบา : 2,800 RPM\r\n• ความเร็วรอบสูงสุดของใบมีด : 9,000 - 10,000 รอบ/นาที(RPM)\r\n• ความจุถังน้ำมันเชื้อเพลิง : 1.2 ลิตร\r\n• น้ำมันเชื่อเพลิง (เบนซิน : น้ำมัน 2T) 25:1\r\n• น้ำหนัก : 15 kg\r\n• ขนาดบรรจุภัณฑ์ : 58x47x32cm', 8495.00, NULL, 5, 'pd_20250822_174209_566161dd.png', 'active', '2025-08-22 10:42:09', '2025-08-22 21:27:42'),
 (18, 1, NULL, 'NM-411 ตัดหญ้าสะพายข้าง 2 จังหวะ', 'NEW WEST ตัดหญ้าสะพายข้าง 2 จังหวะ NM-411 สีเขียว\r\n\r\nประเทศผู้ผลิต:   China\r\n\r\nการรับประกัน:   -', 4995.00, NULL, 0, 'pd_20250822_174402_c2764063.jpg', 'active', '2025-08-22 10:44:02', '2025-08-22 10:44:02'),
-(19, 1, NULL, 'EUROX เครื่องตัดหญ้าไร้สาย 21 โวลต์ รุ่นพับได้ R', 'รายละเอียดสินค้า\r\n- ใบตัดหญ้าผลิตจากพลาสติก PA66 แข็งแรงและคมกริบ\r\n- บังใบขนาดใหญ่เพิ่มความปลอดภัยและสามารถใส่ล้อได้\r\n- ก้านตัดหญ้าสามารถพับได้ พกพาสะดวก และใช้งานง่าย\r\n- มือจับสามารถเลื่อนปรับระดับได้ตามต้องการ มีน้ำหนักเบา\r\n- เหมาะสำหรับใช้งานในครัวเรือนที่สนามหญ้าต้นไม่ใหญ่มาก\r\n- ความเร็วรอบ 8500 รอบ/นาทีและใช้กำลังไฟฟ้า 450 วัตต์\r\n- แบตเตอรี่ 2000 แอมป์และสามารถใช้งานได้ต่อเนื่อง 2 ชม.', 1860.00, NULL, 21, 'pd_20250822_174855_2053b604.png', 'active', '2025-08-22 10:48:55', '2025-08-26 18:01:56');
+(19, 1, NULL, 'EUROX เครื่องตัดหญ้าไร้สาย 21 โวลต์ รุ่นพับได้ R', 'รายละเอียดสินค้า\r\n- ใบตัดหญ้าผลิตจากพลาสติก PA66 แข็งแรงและคมกริบ\r\n- บังใบขนาดใหญ่เพิ่มความปลอดภัยและสามารถใส่ล้อได้\r\n- ก้านตัดหญ้าสามารถพับได้ พกพาสะดวก และใช้งานง่าย\r\n- มือจับสามารถเลื่อนปรับระดับได้ตามต้องการ มีน้ำหนักเบา\r\n- เหมาะสำหรับใช้งานในครัวเรือนที่สนามหญ้าต้นไม่ใหญ่มาก\r\n- ความเร็วรอบ 8500 รอบ/นาทีและใช้กำลังไฟฟ้า 450 วัตต์\r\n- แบตเตอรี่ 2000 แอมป์และสามารถใช้งานได้ต่อเนื่อง 2 ชม.', 1860.00, NULL, 20, 'pd_20250902_195029_860e2d58.png', 'active', '2025-08-22 10:48:55', '2025-09-03 09:17:54');
 
 -- --------------------------------------------------------
 
@@ -425,13 +480,12 @@ INSERT INTO `product_images` (`id`, `product_id`, `filename`, `sort_order`, `is_
 (22, 16, 'pd_20250822_174109_47c410ea.png', 0, 1, '2025-08-22 10:41:09'),
 (23, 17, 'pd_20250822_174209_566161dd.png', 0, 1, '2025-08-22 10:42:09'),
 (24, 18, 'pd_20250822_174402_c2764063.jpg', 0, 1, '2025-08-22 10:44:02'),
-(25, 19, 'pd_20250822_174855_ead0d2b7.png', 0, 0, '2025-08-22 10:48:55'),
-(26, 19, 'pd_20250822_174855_03b3eb99.png', 0, 0, '2025-08-22 10:48:55'),
-(27, 19, 'pd_20250822_174855_12cd7bd2.png', 0, 0, '2025-08-22 10:48:55'),
-(28, 19, 'pd_20250822_174855_e6543ed4.png', 0, 0, '2025-08-22 10:48:55'),
-(29, 19, 'pd_20250822_174855_0c1ba25a.png', 0, 0, '2025-08-22 10:48:55'),
-(30, 19, 'pd_20250822_174855_2053b604.png', 0, 1, '2025-08-22 10:48:55'),
-(31, 19, 'pd_20250822_174855_c36d2ea9.png', 0, 0, '2025-08-22 10:48:55');
+(32, 19, 'pd_20250902_195029_469af458.png', 0, 0, '2025-09-02 12:50:29'),
+(33, 19, 'pd_20250902_195029_8eebbb2a.png', 0, 0, '2025-09-02 12:50:29'),
+(34, 19, 'pd_20250902_195029_091e24f4.png', 0, 0, '2025-09-02 12:50:29'),
+(35, 19, 'pd_20250902_195029_d6408ea9.png', 0, 0, '2025-09-02 12:50:29'),
+(36, 19, 'pd_20250902_195029_e10dd09e.png', 0, 0, '2025-09-02 12:50:29'),
+(37, 19, 'pd_20250902_195029_860e2d58.png', 0, 1, '2025-09-02 12:50:29');
 
 -- --------------------------------------------------------
 
@@ -462,6 +516,35 @@ INSERT INTO `product_reviews` (`id`, `product_id`, `user_id`, `rating`, `content
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `schedule_proposals`
+--
+
+CREATE TABLE `schedule_proposals` (
+  `id` int(11) NOT NULL,
+  `ticket_type` enum('repair','tradein') NOT NULL,
+  `ticket_id` int(11) NOT NULL,
+  `slot_start` datetime NOT NULL,
+  `slot_end` datetime DEFAULT NULL,
+  `duration_minutes` int(11) NOT NULL DEFAULT 60,
+  `status` enum('pending','accepted','declined','cancelled','expired') NOT NULL DEFAULT 'pending',
+  `token` varchar(64) NOT NULL,
+  `note` varchar(255) DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `customer_id` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `schedule_proposals`
+--
+
+INSERT INTO `schedule_proposals` (`id`, `ticket_type`, `ticket_id`, `slot_start`, `slot_end`, `duration_minutes`, `status`, `token`, `note`, `created_by`, `customer_id`, `created_at`, `updated_at`) VALUES
+(3, 'repair', 9, '2025-09-07 13:50:00', '2025-09-07 15:20:00', 90, 'accepted', '', '0', 3, 4, '2025-09-06 01:01:54', '2025-09-06 01:02:59');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `service_status_logs`
 --
 
@@ -472,6 +555,17 @@ CREATE TABLE `service_status_logs` (
   `note` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `service_status_logs`
+--
+
+INSERT INTO `service_status_logs` (`id`, `ticket_id`, `status`, `note`, `created_at`) VALUES
+(31, 9, 'queue', 'ส่งคำขอซ่อมเข้าคิวแล้ว (ความเร่งด่วน: ปกติ)', '2025-09-05 17:49:14'),
+(32, 9, 'checking', '', '2025-09-05 18:29:00'),
+(33, 9, 'repairing', '', '2025-09-05 18:29:09'),
+(34, 9, 'done', '', '2025-09-05 18:31:01'),
+(35, 9, 'cancelled', '', '2025-09-05 18:42:22');
 
 -- --------------------------------------------------------
 
@@ -490,11 +584,29 @@ CREATE TABLE `service_tickets` (
   `line_id` varchar(100) DEFAULT NULL,
   `phone` varchar(30) DEFAULT NULL,
   `desired_date` date DEFAULT NULL,
+  `scheduled_at` datetime DEFAULT NULL,
+  `schedule_status` enum('none','proposed','confirmed') NOT NULL DEFAULT 'none',
   `image_path` varchar(255) DEFAULT NULL,
   `status` enum('queued','diagnose','pricing','repairing','done','returned','cancelled') DEFAULT 'queued',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp(),
+  `parts_grade` enum('used','standard','premium') NOT NULL DEFAULT 'standard',
+  `parts_grade_surcharge` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `ext_warranty_months` tinyint(3) UNSIGNED NOT NULL DEFAULT 0,
+  `ext_warranty_price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `base_warranty_months` tinyint(3) UNSIGNED NOT NULL DEFAULT 1,
+  `estimate_total` decimal(10,2) DEFAULT NULL,
+  `appointment_start` datetime DEFAULT NULL,
+  `appointment_end` datetime DEFAULT NULL,
+  `appointment_status` enum('none','pending','confirmed','declined') NOT NULL DEFAULT 'none'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `service_tickets`
+--
+
+INSERT INTO `service_tickets` (`id`, `user_id`, `device_type`, `brand`, `model`, `urgency`, `issue`, `line_id`, `phone`, `desired_date`, `scheduled_at`, `schedule_status`, `image_path`, `status`, `created_at`, `updated_at`, `parts_grade`, `parts_grade_surcharge`, `ext_warranty_months`, `ext_warranty_price`, `base_warranty_months`, `estimate_total`, `appointment_start`, `appointment_end`, `appointment_status`) VALUES
+(9, 4, '1', '1', '1', 'normal', '1', '1', '1', '2025-09-06', NULL, 'none', NULL, 'cancelled', '2025-09-05 17:49:14', '2025-09-05 18:43:33', 'used', 0.00, 0, 0.00, 1, 0.00, NULL, NULL, 'none');
 
 -- --------------------------------------------------------
 
@@ -529,6 +641,29 @@ CREATE TABLE `support_threads` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `tradein_images`
+--
+
+CREATE TABLE `tradein_images` (
+  `id` bigint(20) NOT NULL,
+  `request_id` bigint(20) NOT NULL,
+  `filename` varchar(255) NOT NULL,
+  `is_cover` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `tradein_images`
+--
+
+INSERT INTO `tradein_images` (`id`, `request_id`, `filename`, `is_cover`, `created_at`) VALUES
+(1, 1, 'tradein_1_1756843950_6c3259b9.png', 0, '2025-09-02 20:12:30'),
+(3, 1, 'tradein_1_1756843950_8fe5609e.png', 1, '2025-09-02 20:12:30'),
+(4, 2, 'tradein_2_1756848394_debbc3eb.png', 1, '2025-09-02 21:26:34');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `tradein_requests`
 --
 
@@ -542,12 +677,22 @@ CREATE TABLE `tradein_requests` (
   `need` enum('buy_new','discount') DEFAULT 'buy_new',
   `image_path` varchar(255) DEFAULT NULL,
   `status` enum('submitted','review','offered','accepted','rejected','cancelled') DEFAULT 'submitted',
+  `scheduled_at` datetime DEFAULT NULL,
+  `schedule_status` enum('none','proposed','confirmed') NOT NULL DEFAULT 'none',
   `offer_price` decimal(10,2) DEFAULT NULL,
   `selected_product_id` bigint(20) UNSIGNED DEFAULT NULL,
   `order_id` bigint(20) UNSIGNED DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `tradein_requests`
+--
+
+INSERT INTO `tradein_requests` (`id`, `user_id`, `device_type`, `brand`, `model`, `device_condition`, `need`, `image_path`, `status`, `scheduled_at`, `schedule_status`, `offer_price`, `selected_product_id`, `order_id`, `created_at`, `updated_at`) VALUES
+(1, 4, '1', '1', '1', '', 'buy_new', 'assets/img/tradein_1_1756843950_8fe5609e.png', 'cancelled', NULL, 'none', 1000.00, NULL, NULL, '2025-09-02 20:12:30', '2025-09-02 21:56:31'),
+(2, 4, '1', '1', '1', 'working', 'buy_new', 'tradein_2_1756848394_debbc3eb.png', 'cancelled', NULL, 'none', 500.00, 1, NULL, '2025-09-02 21:26:34', '2025-09-02 21:56:21');
 
 -- --------------------------------------------------------
 
@@ -563,6 +708,19 @@ CREATE TABLE `tradein_status_logs` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `tradein_status_logs`
+--
+
+INSERT INTO `tradein_status_logs` (`id`, `request_id`, `status`, `note`, `created_at`) VALUES
+(1, 1, 'submitted', 'ส่งคำขอเทิร์น', '2025-09-02 20:12:30'),
+(2, 2, 'reviewing', '', '2025-09-02 21:54:14'),
+(3, 2, 'offered', '100', '2025-09-02 21:54:38'),
+(4, 2, 'accepted', '', '2025-09-02 21:55:27'),
+(5, 2, 'rejected', '', '2025-09-02 21:55:56'),
+(6, 2, 'cancelled', '', '2025-09-02 21:56:21'),
+(7, 1, 'cancelled', '', '2025-09-02 21:56:31');
+
 -- --------------------------------------------------------
 
 --
@@ -576,7 +734,7 @@ CREATE TABLE `users` (
   `google_id` varchar(64) DEFAULT NULL,
   `provider` enum('local','google') NOT NULL DEFAULT 'local',
   `password_hash` varchar(255) DEFAULT NULL,
-  `role` enum('user','seller','admin') DEFAULT 'user',
+  `role` enum('user','admin') DEFAULT 'user',
   `phone` varchar(30) DEFAULT NULL,
   `address` text DEFAULT NULL,
   `profile_pic` varchar(255) DEFAULT NULL,
@@ -598,30 +756,9 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id`, `username`, `email`, `google_id`, `provider`, `password_hash`, `role`, `phone`, `address`, `profile_pic`, `is_active`, `created_at`, `updated_at`, `full_name`, `avatar`, `address_line1`, `address_line2`, `district`, `province`, `postcode`) VALUES
 (3, 'admin', 'test@gmail.com', NULL, 'local', '$2y$10$lTCTupdf0tWtcpSYebJ.3OmAvOP.XNvGmjD0cQ57uRYXQEfc9hTn.', 'admin', NULL, NULL, NULL, 1, '2025-08-19 18:44:05', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
-(4, 'user', 'test1@gmail.com', NULL, 'local', '$2y$10$//mlVomn6qgFywE4ljuEt.nuBNd2mr2Y1pjGG4EII6QOkhSGX6tWW', 'user', '0934944932', NULL, NULL, 1, '2025-08-19 19:55:52', '2025-08-22 14:07:32', 'วีรยุทธ ศิริวัฒนานุกูล', 'uploads/avatars/u4_1755871652_55efaa.jpg', 'บ้าน', '', 'บางแค', 'กรุงเทพมหานคร', '10160'),
+(4, 'user', 'test1@gmail.com', NULL, 'local', '$2y$10$//mlVomn6qgFywE4ljuEt.nuBNd2mr2Y1pjGG4EII6QOkhSGX6tWW', 'user', '0934944932', NULL, NULL, 1, '2025-08-19 19:55:52', '2025-09-02 16:40:21', 'วีรยุทธ ศิริวัฒนานุกูล', 'uploads/avatars/u4_1755871652_55efaa.jpg', 'บ้าน', '', 'บางแค', 'กรุงเทพมหานคร', '10160'),
 (5, 'user1', 'test2@gmail.com', NULL, 'local', '$2y$10$RdgznaZCoWGUKF5OGR9sVeYoSwtxZ9kqb56OhHv8nUkn3scsOsILS', 'user', NULL, NULL, NULL, 1, '2025-08-23 11:05:05', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
 (6, 'siriwat903128', 'siriwat903128@gmail.com', '115730826793962220903', 'google', NULL, 'user', NULL, NULL, NULL, 1, '2025-08-26 18:26:28', NULL, 'siri wat', 'https://lh3.googleusercontent.com/a/ACg8ocIdfvLmNanxW5nD8739Jvp_Adcm7f2FkrcJ9LEV-afxM0jufA=s96-c', NULL, NULL, NULL, NULL, NULL);
-
--- --------------------------------------------------------
-
---
--- Table structure for table `user_addresses`
---
-
-CREATE TABLE `user_addresses` (
-  `id` bigint(20) UNSIGNED NOT NULL,
-  `user_id` bigint(20) UNSIGNED NOT NULL,
-  `full_name` varchar(150) DEFAULT NULL,
-  `phone` varchar(30) DEFAULT NULL,
-  `address_line1` varchar(255) DEFAULT NULL,
-  `address_line2` varchar(255) DEFAULT NULL,
-  `district` varchar(120) DEFAULT NULL,
-  `province` varchar(120) DEFAULT NULL,
-  `postcode` varchar(12) DEFAULT NULL,
-  `is_default` tinyint(1) NOT NULL DEFAULT 0,
-  `created_at` timestamp NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -703,6 +840,15 @@ ALTER TABLE `product_reviews`
   ADD KEY `user_id` (`user_id`);
 
 --
+-- Indexes for table `schedule_proposals`
+--
+ALTER TABLE `schedule_proposals`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `token` (`token`),
+  ADD KEY `idx_time` (`slot_start`,`slot_end`),
+  ADD KEY `idx_ticket` (`ticket_type`,`ticket_id`);
+
+--
 -- Indexes for table `service_status_logs`
 --
 ALTER TABLE `service_status_logs`
@@ -733,6 +879,13 @@ ALTER TABLE `support_threads`
   ADD PRIMARY KEY (`user_id`);
 
 --
+-- Indexes for table `tradein_images`
+--
+ALTER TABLE `tradein_images`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `request_id` (`request_id`);
+
+--
 -- Indexes for table `tradein_requests`
 --
 ALTER TABLE `tradein_requests`
@@ -759,13 +912,6 @@ ALTER TABLE `users`
   ADD UNIQUE KEY `google_id` (`google_id`);
 
 --
--- Indexes for table `user_addresses`
---
-ALTER TABLE `user_addresses`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `fk_user_addresses_user` (`user_id`);
-
---
 -- AUTO_INCREMENT for dumped tables
 --
 
@@ -773,7 +919,7 @@ ALTER TABLE `user_addresses`
 -- AUTO_INCREMENT for table `cart_items`
 --
 ALTER TABLE `cart_items`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=102;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=202;
 
 --
 -- AUTO_INCREMENT for table `categories`
@@ -785,19 +931,19 @@ ALTER TABLE `categories`
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=124;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=171;
 
 --
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
 
 --
 -- AUTO_INCREMENT for table `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
 
 --
 -- AUTO_INCREMENT for table `products`
@@ -809,7 +955,7 @@ ALTER TABLE `products`
 -- AUTO_INCREMENT for table `product_images`
 --
 ALTER TABLE `product_images`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=39;
 
 --
 -- AUTO_INCREMENT for table `product_reviews`
@@ -818,46 +964,52 @@ ALTER TABLE `product_reviews`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
+-- AUTO_INCREMENT for table `schedule_proposals`
+--
+ALTER TABLE `schedule_proposals`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
 -- AUTO_INCREMENT for table `service_status_logs`
 --
 ALTER TABLE `service_status_logs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
 
 --
 -- AUTO_INCREMENT for table `service_tickets`
 --
 ALTER TABLE `service_tickets`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `support_messages`
 --
 ALTER TABLE `support_messages`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+
+--
+-- AUTO_INCREMENT for table `tradein_images`
+--
+ALTER TABLE `tradein_images`
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `tradein_requests`
 --
 ALTER TABLE `tradein_requests`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `tradein_status_logs`
 --
 ALTER TABLE `tradein_status_logs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
-
---
--- AUTO_INCREMENT for table `user_addresses`
---
-ALTER TABLE `user_addresses`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- Constraints for dumped tables
@@ -929,12 +1081,6 @@ ALTER TABLE `tradein_requests`
 --
 ALTER TABLE `tradein_status_logs`
   ADD CONSTRAINT `fk_tradein_log_request` FOREIGN KEY (`request_id`) REFERENCES `tradein_requests` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
---
--- Constraints for table `user_addresses`
---
-ALTER TABLE `user_addresses`
-  ADD CONSTRAINT `fk_user_addresses_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

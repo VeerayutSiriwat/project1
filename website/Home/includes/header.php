@@ -239,34 +239,45 @@ if ($isLoggedIn) {
 const badge   = document.getElementById('notif-badge');
 const listEl  = document.getElementById('notif-list');
 const markBtn = document.getElementById('notif-mark-read');
+const dd      = document.getElementById('notifDropdown');
 
 function fmtTime(iso){
   try { const d = new Date(iso.replace(' ','T')); return d.toLocaleString(); } catch(e){ return iso; }
 }
+function escapeHtml(s){ const d = document.createElement('div'); d.innerText = s || ''; return d.innerHTML; }
+
+/* ปลายทางของลูกค้า */
+function linkFor(it){
+  if (it.type === 'schedule_proposed' && it.ref_id) return `service_my_detail.php?type=repair&id=${it.ref_id}#schedule`;
+  if (it.type === 'schedule_booked'   && it.ref_id) return `service_my_detail.php?type=repair&id=${it.ref_id}#schedule`;
+  if (it.type === 'service_status'    && it.ref_id) return `service_my_detail.php?type=repair&id=${it.ref_id}`;
+  if (it.type === 'tradein_status'    && it.ref_id) return `service_my_detail.php?type=tradein&id=${it.ref_id}`;
+  if (it.type === 'order_status' && it.ref_id)       return `my_orders.php?id=${it.ref_id}`;
+  if (it.type === 'review_reply' && it.ref_id)       return `product.php?id=${it.ref_id}#reviews`;
+  if (it.type === 'support_msg')                    return `contact.php${it.ref_id ? `?uid=${it.ref_id}#chat` : '#chat'}`;
+  return '#';
+}
+
+/* ===== render รายการ + data-id ===== */
 function renderItems(items){
   if (!items || items.length === 0){
     listEl.innerHTML = `<div class="p-3 text-center notif-empty">ยังไม่มีการแจ้งเตือน</div>`;
     return;
   }
   listEl.innerHTML = items.map(it => `
-    <a class="dropdown-item d-block py-2 px-3 notif-item ${it.is_read==0?'unread':''}" href="${linkFor(it)}">
+    <a class="dropdown-item d-block py-2 px-3 notif-item ${Number(it.is_read)===0?'unread':''}"
+       href="${linkFor(it)}" data-id="${it.id||''}">
       <div class="fw-semibold">${escapeHtml(it.title || '')}</div>
       ${it.message ? `<div class="small">${escapeHtml(it.message)}</div>` : ''}
       <div class="time">${fmtTime(it.created_at)}</div>
     </a>
   `).join('');
 }
-function escapeHtml(s){ const d = document.createElement('div'); d.innerText = s || ''; return d.innerHTML; }
-function linkFor(it){
-  if (it.type === 'order_status' && it.ref_id) return `my_orders.php?id=${it.ref_id}`;
-  if (it.type === 'cancel_request' && it.ref_id) return `admin/orders.php?status=cancel_requested`;
-  if (it.type === 'review_reply' && it.ref_id) return `product.php?id=${it.ref_id}#reviews`;
-  if (it.type === 'support_msg') {return `contact.php${it.ref_id ? `?uid=${it.ref_id}#chat` : '#chat'}`;}
-  return '#';
-}
+
+/* ===== API calls ===== */
 async function refreshCount(){
   try{
-    const r = await fetch('notify_api.php?action=count');
+    const r = await fetch('notify_api.php?action=count', {cache:'no-store'});
     const j = await r.json();
     const c = j.count || 0;
     if (c>0){ badge?.classList.remove('d-none'); badge.textContent = c; }
@@ -275,20 +286,54 @@ async function refreshCount(){
 }
 async function refreshList(){
   try{
-    const r = await fetch('notify_api.php?action=list&limit=15');
+    const r = await fetch('notify_api.php?action=list&limit=15', {cache:'no-store'});
     const j = await r.json();
     renderItems(j.items || []);
   }catch(e){
     listEl.innerHTML = `<div class="p-3 text-center notif-empty">โหลดไม่สำเร็จ ลองใหม่อีกครั้ง</div>`;
   }
 }
+
+/* ===== ทำเครื่องหมายอ่านทั้งหมด ===== */
 markBtn?.addEventListener('click', async ()=>{
-  await fetch('notify_api.php', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'action=mark_all_read'});
+  await fetch('notify_api.php', {
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'action=mark_all_read'
+  });
   refreshCount(); refreshList();
 });
+
+/* ===== ทำเครื่องหมายอ่านทีละรายการเมื่อคลิก ===== */
+listEl?.addEventListener('click', async (e)=>{
+  const a = e.target.closest('a[data-id]');
+  if(!a) return;
+  const id = a.getAttribute('data-id');
+  if(!id) return;
+  // ส่งแบบ keepalive ให้ทันแม้กำลังเปลี่ยนหน้า
+  navigator.sendBeacon?.(
+    'notify_api.php',
+    new URLSearchParams({ action:'mark_read', id }).toString()
+  ) || fetch('notify_api.php', {
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({ action:'mark_read', id }).toString(),
+    keepalive: true
+  });
+  a.classList.remove('unread');
+  refreshCount(); // ลดตัวเลขทันที
+});
+
+/* เปิดดรอปดาวน์ = รีเฟรชรายการล่าสุด */
+dd?.addEventListener('show.bs.dropdown', refreshList);
+
+/* เริ่มต้น + โพลล์ทุก 30 วิ */
 refreshCount(); refreshList();
-setInterval(()=>{ refreshCount(); }, 30000);
+setInterval(refreshCount, 30000);
+
 </script>
+
 <?php endif; ?>
+
 </body>
 </html>

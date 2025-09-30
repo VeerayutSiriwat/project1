@@ -8,7 +8,6 @@ function digits4($phone){ return substr(preg_replace('/\D/','',$phone??''), -4);
 
 $ticket_in = trim($_GET['ticket'] ?? '');
 $phone_in  = trim($_GET['phone'] ?? '');
-
 $tid = (int)preg_replace('/\D/','',$ticket_in); // รองรับ ST-1001
 $ticket = null;
 
@@ -35,7 +34,7 @@ if($ok_access){
   }
 }
 
-// map ชื่อสถานะให้อ่านง่าย (ปรับตาม enum จริงของคุณ)
+/* ===== mapping ===== */
 $labels = [
   'queue'          => 'เข้าคิว',
   'confirm'        => 'ยืนยันคิว',
@@ -45,6 +44,10 @@ $labels = [
   'done'           => 'เสร็จพร้อมรับ',
   'cancelled'      => 'ยกเลิก',
 ];
+
+$urgencyMap   = ['normal'=>'ปกติ','urgent'=>'เร่งด่วน'];
+$urgencyBadge = ['normal'=>'secondary','urgent'=>'danger'];
+$urgency      = $ticket['urgency'] ?? 'normal';
 ?>
 <!doctype html>
 <html lang="th">
@@ -59,7 +62,12 @@ $labels = [
 <?php include __DIR__.'/includes/header.php'; ?>
 
 <div class="container py-4">
-  <h4 class="fw-bold mb-3"><i class="bi bi-clipboard-check me-1"></i> สถานะงานซ่อม</h4>
+  <h4 class="fw-bold mb-3 d-flex align-items-center gap-2">
+    <i class="bi bi-clipboard-check"></i> สถานะงานซ่อม
+    <?php if($ticket && $ok_access && $urgency==='urgent'): ?>
+      <span class="badge bg-danger"><i class="bi bi-lightning-charge-fill me-1"></i> เร่งด่วน</span>
+    <?php endif; ?>
+  </h4>
 
   <?php if(!$ticket): ?>
     <div class="alert alert-warning">ไม่พบใบงานหมายเลข <b><?=h($ticket_in)?></b></div>
@@ -75,7 +83,7 @@ $labels = [
     <div class="row g-3">
       <div class="col-lg-7">
         <div class="border rounded-4 p-3 bg-white">
-          <div class="d-flex justify-content-between">
+          <div class="d-flex justify-content-between align-items-start">
             <div>
               <div class="small text-muted">หมายเลขใบงาน</div>
               <div class="h5 mb-0">ST-<?= (int)$ticket['id'] ?></div>
@@ -87,6 +95,11 @@ $labels = [
                 $label  = $labels[$status] ?? $status;
               ?>
               <div class="badge text-bg-primary fs-6"><?= h($label) ?></div>
+              <div class="mt-2">
+                <span class="badge bg-<?= $urgencyBadge[$urgency] ?? 'secondary' ?>">
+                  <?= h($urgencyMap[$urgency] ?? '-') ?>
+                </span>
+              </div>
             </div>
           </div>
           <hr>
@@ -97,7 +110,14 @@ $labels = [
             <div class="col-md-6"><div class="small text-muted">โทร</div><div><?=h($ticket['phone'])?></div></div>
             <div class="col-md-6"><div class="small text-muted">LINE</div><div><?=h($ticket['line_id'])?></div></div>
             <div class="col-md-6"><div class="small text-muted">นัดวันที่</div><div><?=h($ticket['desired_date'])?></div></div>
-            <div class="col-md-6"><div class="small text-muted">ความเร่งด่วน</div><div><?=h($ticket['urgency'])?></div></div>
+            <div class="col-md-6">
+              <div class="small text-muted">ความเร่งด่วน</div>
+              <div>
+                <span class="badge bg-<?= $urgencyBadge[$urgency] ?? 'secondary' ?>">
+                  <?= h($urgencyMap[$urgency] ?? '-') ?>
+                </span>
+              </div>
+            </div>
             <div class="col-12"><div class="small text-muted">อาการ</div><div><?=nl2br(h($ticket['issue']))?></div></div>
           </div>
           <?php if(!empty($ticket['image_path'])): ?>

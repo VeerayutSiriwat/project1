@@ -1,5 +1,5 @@
 <?php
-// Home/admin/service_tickets.php (revamped glass UI)
+// Home/admin/service_tickets.php (revamped glass UI + effective status/urgency)
 if (session_status()===PHP_SESSION_NONE){ session_start(); }
 require __DIR__ . '/../includes/db.php';
 
@@ -32,35 +32,70 @@ $per_page = 20;
 $page     = max(1, (int)($_GET['page'] ?? 1));
 $offset   = ($page-1)*$per_page;
 
+/* ===== base derived table (คำนวณสถานะจาก log และ normalize เร่งด่วน) =====
+   - status_eff  : สถานะจาก log ล่าสุด (fallback เป็น service_tickets.status)
+   - urgency_eff : แปลงค่าเร่งด่วนให้เหลือ normal/urgent เพื่อให้ filter ตรง
+*/
+$BASE_FROM = "
+  FROM (
+    SELECT
+      st.*,
+      COALESCE(
+        (SELECT l.status FROM service_status_logs l
+         WHERE l.ticket_id = st.id
+         ORDER BY l.id DESC
+         LIMIT 1),
+        st.status
+      ) AS status_eff,
+      CASE
+        WHEN LOWER(TRIM(st.urgency)) IN ('urgent','ด่วน','เร่งด่วน','1','true') THEN 'urgent'
+        ELSE 'normal'
+      END AS urgency_eff
+    FROM service_tickets st
+  ) S
+  WHERE 1=1
+";
+
 /* ---- count ---- */
-$count_sql = "SELECT COUNT(*) c FROM service_tickets WHERE 1=1";
+$count_sql = "SELECT COUNT(*) c ".$BASE_FROM;
 $types=''; $params=[];
-if($q!==''){ $count_sql.=" AND (id=? OR phone LIKE ? OR device_type LIKE ? OR brand LIKE ? OR model LIKE ?)";
+if($q!==''){
+  $count_sql.=" AND (S.id=? OR S.phone LIKE ? OR S.device_type LIKE ? OR S.brand LIKE ? OR S.model LIKE ?)";
   $idq=(int)preg_replace('/\D/','',$q); $like="%$q%";
-  $params[]=$idq;$types.='i'; $params[]=$like;$types.='s'; $params[]=$like;$types.='s'; $params[]=$like;$types.='s'; $params[]=$like;$types.='s';
+  $params[]=$idq;  $types.='i';
+  $params[]=$like; $types.='s';
+  $params[]=$like; $types.='s';
+  $params[]=$like; $types.='s';
+  $params[]=$like; $types.='s';
 }
-if($status!=='all'){ $count_sql.=" AND status=?";   $params[]=$status;  $types.='s'; }
-if($urgency!=='all'){ $count_sql.=" AND urgency=?"; $params[]=$urgency; $types.='s'; }
-if($from!==''){ $count_sql.=" AND DATE(created_at)>=?"; $params[]=$from; $types.='s'; }
-if($to!==''){   $count_sql.=" AND DATE(created_at)<=?"; $params[]=$to;   $types.='s'; }
+if($status!=='all'){   $count_sql.=" AND S.status_eff=?";   $params[]=$status;  $types.='s'; }
+if($urgency!=='all'){  $count_sql.=" AND S.urgency_eff=?";  $params[]=$urgency; $types.='s'; }
+if($from!==''){        $count_sql.=" AND DATE(S.created_at)>=?"; $params[]=$from; $types.='s'; }
+if($to!==''){          $count_sql.=" AND DATE(S.created_at)<=?"; $params[]=$to;   $types.='s'; }
 $st=$conn->prepare($count_sql); if($params){$st->bind_param($types, ...$params);} $st->execute();
 $total_rows=(int)($st->get_result()->fetch_assoc()['c'] ?? 0); $st->close();
 $total_pages=max(1,(int)ceil($total_rows/$per_page));
 if($page>$total_pages){ $page=$total_pages; $offset=($page-1)*$per_page; }
 
 /* ---- fetch ---- */
-$sql = "SELECT * FROM service_tickets WHERE 1=1";
+$sql = "SELECT * ".$BASE_FROM;
 $types=''; $params=[];
-if($q!==''){ $sql.=" AND (id=? OR phone LIKE ? OR device_type LIKE ? OR brand LIKE ? OR model LIKE ?)";
+if($q!==''){
+  $sql.=" AND (S.id=? OR S.phone LIKE ? OR S.device_type LIKE ? OR S.brand LIKE ? OR S.model LIKE ?)";
   $idq=(int)preg_replace('/\D/','',$q); $like="%$q%";
-  $params[]=$idq;$types.='i'; $params[]=$like;$types.='s'; $params[]=$like;$types.='s'; $params[]=$like;$types.='s'; $params[]=$like;$types.='s';
+  $params[]=$idq;  $types.='i';
+  $params[]=$like; $types.='s';
+  $params[]=$like; $types.='s';
+  $params[]=$like; $types.='s';
+  $params[]=$like; $types.='s';
 }
-if($status!=='all'){ $sql.=" AND status=?";   $params[]=$status;  $types.='s'; }
-if($urgency!=='all'){ $sql.=" AND urgency=?"; $params[]=$urgency; $types.='s'; }
-if($from!==''){ $sql.=" AND DATE(created_at)>=?"; $params[]=$from; $types.='s'; }
-if($to!==''){   $sql.=" AND DATE(created_at)<=?"; $params[]=$to;   $types.='s'; }
-$sql.=" ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?";
-$params[]=$per_page;$types.='i'; $params[]=$offset;$types.='i';
+if($status!=='all'){   $sql.=" AND S.status_eff=?";   $params[]=$status;  $types.='s'; }
+if($urgency!=='all'){  $sql.=" AND S.urgency_eff=?";  $params[]=$urgency; $types.='s'; }
+if($from!==''){        $sql.=" AND DATE(S.created_at)>=?"; $params[]=$from; $types.='s'; }
+if($to!==''){          $sql.=" AND DATE(S.created_at)<=?"; $params[]=$to;   $types.='s'; }
+$sql.=" ORDER BY S.updated_at DESC, S.id DESC LIMIT ? OFFSET ?";
+$params[]=$per_page; $types.='i';
+$params[]=$offset;   $types.='i';
 $st=$conn->prepare($sql); if($params){$st->bind_param($types, ...$params);} $st->execute();
 $rows=$st->get_result()->fetch_all(MYSQLI_ASSOC); $st->close();
 
@@ -151,7 +186,7 @@ $badge_map = [
       <a class="side-a" href="orders.php"><i class="bi bi-receipt me-2"></i> Orders</a>
       <a class="side-a" href="products.php"><i class="bi bi-box-seam me-2"></i> Products</a>
       <a class="side-a" href="tradein_requests.php"><i class="bi bi-arrow-left-right me-2"></i> Trade-in</a>
-      <a class="side-a active" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> service</a>
+      <a class="side-a active" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> Service</a>
       <a class="side-a" href="users.php"><i class="bi bi-people me-2"></i> Users</a>
       <a class="side-a" href="support.php"><i class="bi bi-chat-dots me-2"></i> กล่องข้อความ</a>
     </div>
@@ -233,11 +268,18 @@ $badge_map = [
               </td>
               <td><?= h($r['desired_date'] ?: '-') ?></td>
               <td>
-                <?php if(($r['urgency'] ?? 'normal')==='urgent'): ?>
-                  <span class="badge bg-danger">ความเร่งด่วน</span>
-                <?php else: ?><span class="badge bg-secondary">ปกติ</span><?php endif; ?>
+                <?php if(($r['urgency_eff'] ?? 'normal')==='urgent'): ?>
+                  <span class="badge bg-danger">เร่งด่วน</span>
+                <?php else: ?>
+                  <span class="badge bg-secondary">ปกติ</span>
+                <?php endif; ?>
               </td>
-              <td><span class="badge bg-<?= $badge_map[$r['status']] ?? 'secondary' ?>"><?= h($statuses[$r['status']] ?? $r['status']) ?></span></td>
+              <td>
+                <?php $stKey=$r['status_eff'] ?? $r['status']; ?>
+                <span class="badge bg-<?= $badge_map[$stKey] ?? 'secondary' ?>">
+                  <?= h($statuses[$stKey] ?? $stKey) ?>
+                </span>
+              </td>
               <td class="small text-muted"><?= h($r['updated_at']) ?></td>
               <td class="text-end">
                 <a href="service_ticket_detail.php?id=<?= (int)$r['id'] ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> เปิด</a>
@@ -248,7 +290,7 @@ $badge_map = [
         </table>
       </div>
     </div>
-
+              
     <!-- Pagination -->
     <?php if($total_pages>1): ?>
       <nav>
