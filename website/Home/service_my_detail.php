@@ -177,6 +177,18 @@ $APPT_TEXT  = ['none'=>'—','pending'=>'รอยืนยัน','confirmed'=>
   <div class="container py-4">
     <a href="service_my.php" class="btn btn-outline-secondary mb-3"><i class="bi bi-arrow-left"></i> กลับ</a>
 
+    <?php
+      // flash สำหรับแจ้งผล accept/reject เทิร์น ฯลฯ
+      $flash = $_SESSION['flash'] ?? '';
+      unset($_SESSION['flash']);
+      if ($flash):
+    ?>
+      <div class="alert alert-info alert-dismissible fade show">
+        <?= h($flash) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    <?php endif; ?>
+
     <?php if($type==='repair'): ?>
       <div class="row g-3">
         <div class="col-lg-7">
@@ -360,7 +372,7 @@ $APPT_TEXT  = ['none'=>'—','pending'=>'รอยืนยัน','confirmed'=>
                     echo '<div class="col-4 col-md-3"><img class="ti-thumb" src="'.h($src).'" alt=""></div>';
                   }
                   echo '</div>';
-                } else {
+                }  else {
                   $cover = thumb_path($req['cover_path'] ?? $req['image_path'] ?? '');
                   if($cover){
                     echo '<hr><img class="img-fluid rounded border thumb-lg" src="'.h($cover).'" alt="">';
@@ -376,6 +388,73 @@ $APPT_TEXT  = ['none'=>'—','pending'=>'รอยืนยัน','confirmed'=>
             <div class="card-header">
               สถานะปัจจุบัน: <span class="badge text-bg-primary"><?=h($map[$req['status']] ?? $req['status'])?></span>
             </div>
+            <?php
+// ==== บล็อกคูปองเทิร์น (เวอร์ชันทนสคีมา) ====
+
+// ดึงคูปองเทิร์นของคำขอนี้ (ถ้ามี) — map ชื่อคอลัมน์ให้เข้ากับ schema จริง
+// ดึงคูปองเทิร์นของคำขอนี้ (ถ้ามี) + นับการใช้งานจาก coupon_usages
+$tradeinCoupon = null;
+if ($st=$conn->prepare("
+  SELECT c.id, c.code, c.value, c.ends_at, c.uses_limit, c.per_user_limit, c.applies_to,
+         COALESCE(COUNT(cu.id),0) AS used_total
+  FROM coupons c
+  LEFT JOIN coupon_usages cu ON cu.coupon_id = c.id
+  WHERE c.tradein_id=? AND c.user_id=? AND c.status='active'
+  GROUP BY c.id
+  ORDER BY c.id DESC
+  LIMIT 1
+")){
+  $st->bind_param('ii', $req['id'], $uid); $st->execute();
+  $tradeinCoupon = $st->get_result()->fetch_assoc();
+  $st->close();
+}
+if ($tradeinCoupon):
+  $limit = (int)($tradeinCoupon['uses_limit'] ?? 0);   // 0 หรือ NULL = ไม่จำกัด
+  $used  = (int)($tradeinCoupon['used_total'] ?? 0);
+  $left  = ($limit<=0) ? 'ไม่จำกัด' : max(0, $limit - $used);
+?>
+  <div class="alert alert-success mb-3">
+    <div><i class="bi bi-ticket-perforated me-1"></i> คูปองเครดิตเทิร์นของคุณ</div>
+    <div class="mt-1">
+      โค้ด: <b><?= h($tradeinCoupon['code']) ?></b> — 
+      มูลค่า: <b><?= number_format((float)$tradeinCoupon['value'],2) ?> ฿</b><br>
+      ใช้ได้อีก: <b><?= h($left) ?></b> ครั้ง
+      <?php if(!empty($tradeinCoupon['ends_at'])): ?>
+        , หมดอายุ: <b><?= h($tradeinCoupon['ends_at']) ?></b>
+      <?php endif; ?>
+    </div>
+    <a href="checkout.php" class="btn btn-outline-primary btn-sm mt-2">ไปหน้า Checkout เพื่อใช้คูปอง</a>
+  </div>
+<?php endif; ?>
+
+
+            <?php if($req['status']==='offered'): ?>
+              <div class="alert alert-primary">
+                <?php if($req['offer_price']!==null && $req['offer_price']!==''): ?>
+                  ข้อเสนอจากร้าน: <b><?= number_format((float)$req['offer_price'],2) ?> ฿</b><br>
+                <?php else: ?>
+                  มีข้อเสนอให้พิจารณา
+                <?php endif; ?>
+                <?php if(!empty($req['selected_product_id'])): ?>
+                  <div class="mt-1">สินค้าแนะนำ: <span class="badge text-bg-secondary">ID #<?= (int)$req['selected_product_id'] ?></span></div>
+                <?php endif; ?>
+              </div>
+
+              <form action="tradein_action.php" method="post" class="d-flex gap-2 mb-3">
+                <input type="hidden" name="id" value="<?= (int)$req['id'] ?>">
+                <button class="btn btn-success" name="action" value="accept">
+                  <i class="bi bi-check2-circle"></i> ยอมรับข้อเสนอ
+                </button>
+                <button class="btn btn-outline-danger" name="action" value="reject">
+                  <i class="bi bi-x-circle"></i> ปฏิเสธ
+                </button>
+              </form>
+            <?php elseif($req['status']==='accepted'): ?>
+              <div class="alert alert-success mb-3"><i class="bi bi-check2-circle"></i> คุณยอมรับข้อเสนอแล้ว กำลังรอร้านดำเนินการ</div>
+            <?php elseif($req['status']==='rejected'): ?>
+              <div class="alert alert-secondary mb-3"><i class="bi bi-x-circle"></i> คุณปฏิเสธข้อเสนอแล้ว</div>
+            <?php endif; ?>
+
             <div class="card-body">
               <?php if(empty($logs)): ?>
                 <div class="text-muted">ยังไม่มีบันทึกสถานะ</div>

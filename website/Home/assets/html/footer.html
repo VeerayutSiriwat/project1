@@ -154,6 +154,10 @@
     outline-offset: 2px;
     border-radius: 10px;
   }
+  .container {
+  min-height: calc(100% - 100%); /* ปรับ 200px ตามความสูง header+footer */
+}
+
 
   /* Fallback ไม่รองรับ backdrop-filter */
   @supports not ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {

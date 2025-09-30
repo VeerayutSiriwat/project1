@@ -79,6 +79,7 @@ $per_page = 10;
 $page     = max(1, (int)($_GET['page'] ?? 1));
 $offset   = ($page - 1) * $per_page;
 
+
 /* =======================
    COUNT ทั้งหมดตามตัวกรอง
 ======================= */
@@ -252,6 +253,7 @@ if (!empty($_SESSION['user_id'])) {
       <a class="side-a" href="tradein_requests.php"><i class="bi bi-arrow-left-right me-2"></i> Trade-in</a>
       <a class="side-a" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> Service</a>
       <a class="side-a" href="users.php"><i class="bi bi-people me-2"></i> Users</a>
+      <a class="side-a" href="coupons_list.php"><i class="bi bi-ticket-detailed me-2"></i> Coupons</a>
       <a class="side-a" href="support.php"><i class="bi bi-chat-dots me-2"></i> กล่องข้อความ</a>
     </div>
     <div class="p-3 border-top">

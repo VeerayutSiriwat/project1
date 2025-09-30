@@ -375,6 +375,7 @@ $cover = $req['image_path'] ?: ( ($gallery[0]['filename'] ?? '') ? 'assets/img/'
       localStorage.setItem('admin-theme', cur);
     });
   })();
+  
 </script>
 </body>
 </html>

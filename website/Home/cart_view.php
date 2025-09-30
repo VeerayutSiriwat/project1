@@ -1,5 +1,5 @@
-<?php
-// cart_view.php — mobile-first + sticky footer safe area + mobile select-all
+<?php 
+// Home/cart_view.php — premium mobile-first + sticky footer + edit/select-all
 session_start();
 require __DIR__ . '/includes/db.php';
 
@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = (int)$_SESSION['user_id'];
 
 $sql = "SELECT ci.id, ci.product_id, ci.quantity,
-               p.name, p.price, p.discount_price, p.image, p.stock
+               p.name, p.price, p.discount_price, p.image, p.stock, COALESCE(p.status,'active') AS status
         FROM cart_items ci
         JOIN products p ON p.id = ci.product_id
         WHERE ci.user_id = ?";
@@ -33,77 +33,67 @@ function imgsrc($v){
 <meta charset="utf-8">
 <title>รถเข็นสินค้า | WEB APP</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
-  /* ===== Layout: sticky footer & safe area for cart bar ===== */
-  html,body{height:100%}
-  body{min-height:100vh; display:flex; flex-direction:column;}
-  :root{ --cartbar-safe: 96px; }
-  main.page-content{flex:1 0 auto; padding-bottom: calc(var(--cartbar-safe) + env(safe-area-inset-bottom, 0px));}
-  .footer-pro, footer{ margin-top:auto; position:relative; z-index:3; }
-
-  /* ===== Card & table styles ===== */
-  .card-glass{
-    border:1px solid #e9eef5; border-radius:18px;
-    box-shadow:0 18px 60px rgba(2,6,23,.06);
-    overflow:visible; /* อย่า hidden ไม่งั้น sticky เพี้ยน */
+  :root{
+    --bg:#f6f8fb; --card:#fff; --line:#e9eef5; --ink:#0b1a37; --muted:#6b7280;
+    --pri:#2563eb; --pri2:#4f46e5;
+    --safe: 96px;
   }
-  .table> :not(caption)>*>*{border-color:#e9eef5}
-  .thumb{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid #e9eef5;background:#fff}
+  html,body{height:100%}
+  body{min-height:100vh; display:flex; flex-direction:column; background:linear-gradient(180deg,#f8fbff,#f6f8fb 50%,#f5f7fa);}
+  main.page-content{flex:1 0 auto; padding-bottom: calc(var(--safe) + env(safe-area-inset-bottom, 0px));}
+  .card-glass{ border:1px solid var(--line); border-radius:18px; box-shadow:0 18px 60px rgba(2,6,23,.06); overflow:visible; background:var(--card);}
+  .page-head{ border-radius:20px; background:linear-gradient(135deg,var(--pri) 0%, var(--pri2) 55%, #0ea5e9 100%); color:#fff; padding:18px; box-shadow:0 8px 24px rgba(37,99,235,.15); }
+  .stepper{display:flex; gap:12px; flex-wrap:wrap; margin-top:8px}
+  .step{display:flex; align-items:center; gap:8px; color:#e6ecff; font-weight:600; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); padding:6px 12px; border-radius:999px;}
+  .step .num{width:24px; height:24px; border-radius:999px; display:grid; place-items:center; background:#fff; color:#1f2a44; font-weight:800; font-size:.85rem;}
+  .step.active{background:#fff; color:#0b1a37;}
+  .step.active .num{background:var(--pri); color:#fff;}
 
-  /* Qty control */
+  .table> :not(caption)>*>*{border-color:#e9eef5}
+  .thumb{width:64px;height:64px;object-fit:cover;border-radius:12px;border:1px solid var(--line);background:#fff}
+
   .qty-wrap{display:inline-flex; align-items:center;}
   .qty-btn{width:38px; height:38px; line-height:1;}
   .qty-input{width:76px; height:38px; text-align:center}
 
-  /* Sticky summary bar */
   .cart-bar{
-    position:sticky;
-    bottom:max(env(safe-area-inset-bottom),0px);
-    z-index:2;
-    background:linear-gradient(180deg,#ffffff,#f9fbff);
-    border:1px solid #e9eef5; border-radius:14px;
-    box-shadow:0 14px 40px rgba(2,6,23,.08);
-    padding:.75rem;
-    margin:0 .5rem .75rem .5rem;
+    position:sticky; bottom:max(env(safe-area-inset-bottom),0px); z-index:2;
+    background:linear-gradient(180deg,#ffffff,#f9fbff); border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 14px 40px rgba(2,6,23,.08); padding:.75rem; margin:0 .5rem .75rem .5rem;
   }
-
-  /* Edit/Select */
   .edit-toggle.active{background:#e0e7ff;border-color:#c7d2fe}
   .col-select{ width:42px; }
   .select-cell, .select-all-cell{ display:none; }
   .editing .select-cell, .editing .select-all-cell{ display:table-cell; }
 
-  /* ===== Mobile layout ===== */
+  .price-old{ text-decoration:line-through; color:#94a3b8; }
+  .price-now{ color:#16a34a; font-weight:700; }
+
+  /* Mobile layout */
   @media (max-width: 992px){
     .table thead{ display:none; }
     .table tbody tr{
       display:block; margin:12px 0;
-      border:1px solid #e9eef5; border-radius:14px; padding:12px;
-      background:#fff;
+      border:1px solid var(--line); border-radius:14px; padding:12px; background:#fff;
     }
     .table tbody td{ border:0; padding:.35rem 0; }
-    /* สินค้าแสดงบนสุดเป็นบรรทัดเดียว */
     .table tbody td[data-label="สินค้า"] .thumb{ width:56px;height:56px }
-    /* จัดจำนวน/ราคา/รวม ให้เป็นแถวอ่านง่าย */
-    .table tbody td[data-label="จำนวน"]{ display:flex; justify-content:space-between; align-items:center; }
+    .table tbody td[data-label="จำนวน"],
     .table tbody td[data-label="ราคา/ชิ้น"],
     .table tbody td[data-label="รวม"]{
       display:flex; justify-content:space-between; align-items:center;
-      color:#0f172a; font-weight:600;
     }
     .table tbody td:last-child{
       display:flex; justify-content:flex-end;
     }
-    /* แสดง checkbox ทุกแถวเมื่อแก้ไข */
     .editing .select-cell{ display:block; order:-1; margin-bottom:.25rem }
     .cart-bar{ padding:.65rem; border-radius:12px }
     .qty-btn{ width:36px; height:36px }
     .qty-input{ width:70px; height:36px }
   }
-
   @media (max-width:576px){
     .thumb{width:52px;height:52px}
     .qty-input{ width:64px }
@@ -117,22 +107,29 @@ function imgsrc($v){
 <main class="page-content">
   <div class="container py-4">
 
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <h3 class="mb-0"><i class="bi bi-cart3"></i> รถเข็นของฉัน</h3>
-      <div class="d-flex gap-2">
-        <button id="btnEdit" class="btn btn-outline-primary edit-toggle">
-          <i class="bi bi-pencil-square"></i> แก้ไข
-        </button>
-        <a href="products.php" class="btn btn-outline-secondary">
-          <i class="bi bi-bag"></i> เลือกซื้อสินค้าต่อ
-        </a>
+    <div class="page-head mb-3">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <h3 class="m-0"><i class="bi bi-cart3 me-2"></i>รถเข็นของฉัน</h3>
+        <div class="d-flex gap-2">
+          <button id="btnEdit" class="btn btn-light edit-toggle">
+            <i class="bi bi-pencil-square"></i> แก้ไข
+          </button>
+          <a href="products.php" class="btn btn-outline-light">
+            <i class="bi bi-bag"></i> เลือกซื้อสินค้าต่อ
+          </a>
+        </div>
+      </div>
+      <div class="stepper">
+        <div class="step active"><span class="num">1</span> รถเข็น</div>
+        <div class="step"><span class="num">2</span> ชำระเงิน</div>
       </div>
     </div>
 
     <?php if (empty($items)): ?>
-      <div class="card card-glass p-4 text-center text-muted">
-        <div class="mb-2" style="font-size:2rem"><i class="bi bi-emoji-neutral"></i></div>
+      <div class="card card-glass p-5 text-center text-muted">
+        <div class="mb-2" style="font-size:2rem">🧺</div>
         ยังไม่มีสินค้าในรถเข็น
+        <div class="mt-2"><a href="products.php" class="btn btn-primary">เริ่มช็อปเลย</a></div>
       </div>
     <?php else: ?>
       <div class="card card-glass">
@@ -154,8 +151,10 @@ function imgsrc($v){
               <?php
               $total = 0;
               foreach ($items as $it):
-                $price = ($it['discount_price'] && $it['discount_price'] < $it['price']) ? $it['discount_price'] : $it['price'];
-                $sum   = $price * $it['quantity'];
+                if (($it['status'] ?? 'active') !== 'active') continue;
+                $base = (float)$it['price'];
+                $now  = ($it['discount_price'] && $it['discount_price'] < $it['price']) ? (float)$it['discount_price'] : $base;
+                $sum   = $now * (int)$it['quantity'];
                 $total += $sum;
                 $img = imgsrc($it['image']);
               ?>
@@ -167,10 +166,16 @@ function imgsrc($v){
                 <!-- สินค้า -->
                 <td data-label="สินค้า">
                   <div class="d-flex align-items-center gap-3">
-                    <img src="<?= htmlspecialchars($img) ?>" class="thumb" alt="">
+                    <img src="<?= htmlspecialchars($img) ?>" class="thumb" loading="lazy" decoding="async" alt="">
                     <div>
                       <div class="fw-semibold"><?= htmlspecialchars($it['name']) ?></div>
                       <div class="small text-muted">คงเหลือ: <?= (int)$it['stock'] ?></div>
+                      <?php if($now < $base): ?>
+                        <div class="small"><span class="price-old"><?=baht($base)?> ฿</span>
+                          <span class="price-now ms-1"><?=baht($now)?> ฿</span></div>
+                      <?php else: ?>
+                        <div class="small fw-semibold"><?=baht($now)?> ฿</div>
+                      <?php endif; ?>
                     </div>
                   </div>
                 </td>
@@ -181,7 +186,7 @@ function imgsrc($v){
                     <form action="cart_update.php" method="post" class="me-1">
                       <input type="hidden" name="id"  value="<?= (int)$it['id'] ?>">
                       <input type="hidden" name="qty" value="<?= max(1, (int)$it['quantity']-1) ?>">
-                      <button class="btn btn-outline-secondary btn-sm qty-btn" <?= $it['quantity']<=1 ? 'disabled':'' ?>>−</button>
+                      <button class="btn btn-outline-secondary btn-sm qty-btn" <?= $it['quantity']<=1 ? 'disabled':'' ?> aria-label="ลดจำนวน">−</button>
                     </form>
 
                     <form action="cart_update.php" method="post" class="d-inline-flex">
@@ -195,15 +200,15 @@ function imgsrc($v){
                     <form action="cart_update.php" method="post" class="ms-1">
                       <input type="hidden" name="id"  value="<?= (int)$it['id'] ?>">
                       <input type="hidden" name="qty" value="<?= min((int)$it['stock'], (int)$it['quantity']+1) ?>">
-                      <button class="btn btn-outline-secondary btn-sm qty-btn" <?= $it['quantity']>=$it['stock'] ? 'disabled':'' ?>>+</button>
+                      <button class="btn btn-outline-secondary btn-sm qty-btn" <?= $it['quantity']>=$it['stock'] ? 'disabled':'' ?> aria-label="เพิ่มจำนวน">+</button>
                     </form>
                   </div>
                 </td>
 
-                <td data-label="ราคา/ชิ้น" class="text-end"><?= baht($price) ?> ฿</td>
+                <td data-label="ราคา/ชิ้น" class="text-end"><?= baht($now) ?> ฿</td>
                 <td data-label="รวม" class="text-end sum-cell"><?= baht($sum) ?> ฿</td>
                 <td class="text-end">
-                  <button class="btn btn-sm btn-outline-danger btn-remove" title="ลบชิ้นนี้">
+                  <button class="btn btn-sm btn-outline-danger btn-remove" title="ลบชิ้นนี้" aria-label="ลบชิ้นนี้">
                     <i class="bi bi-trash"></i>
                   </button>
                 </td>
@@ -221,7 +226,7 @@ function imgsrc($v){
           </table>
         </div>
 
-        <!-- แถบล่าง: มี select-all สำหรับมือถือเมื่ออยู่โหมดแก้ไข -->
+        <!-- Sticky bar -->
         <div class="cart-bar" role="region" aria-label="สรุปรายการรถเข็น">
           <div class="d-flex flex-wrap align-items-center gap-2">
             <div id="mobileSelectWrap" class="form-check d-none me-2">
@@ -230,7 +235,7 @@ function imgsrc($v){
             </div>
 
             <div class="me-auto small text-muted">
-              เลือกหลายรายการได้โดยกด <span class="badge bg-secondary">แก้ไข</span> แล้วติ๊กเลือก
+              <span id="selInfo">ยังไม่ได้เลือกสินค้า</span>
             </div>
 
             <button id="btnDeleteSel" class="btn btn-outline-danger" disabled>
@@ -246,13 +251,13 @@ function imgsrc($v){
 
   </div>
 
-  <!-- อัปเดต safe area ตามความสูงจริงของ cart-bar -->
+  <!-- safe area updater -->
   <script>
     (function(){
       const bar = document.querySelector('.cart-bar'); if(!bar) return;
       function setSafe(){
         const h = Math.ceil(bar.getBoundingClientRect().height) + 28;
-        document.documentElement.style.setProperty('--cartbar-safe', h + 'px');
+        document.documentElement.style.setProperty('--safe', h + 'px');
       }
       setSafe();
       addEventListener('load', setSafe);
@@ -261,7 +266,6 @@ function imgsrc($v){
     })();
   </script>
 </main>
-
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
@@ -274,13 +278,13 @@ function imgsrc($v){
   const btnDelete = document.getElementById('btnDeleteSel');
   const tbody     = table.querySelector('tbody');
   const totalCell = document.getElementById('grandTotal');
+  const selInfo   = document.getElementById('selInfo');
 
-  // mobile select-all (หัวตารางถูกซ่อน)
   const mobileWrap = document.getElementById('mobileSelectWrap');
   const mobileAll  = document.getElementById('mobileSelectAll');
 
   const parseBaht = s => parseFloat(String(s).replace(/[^\d.-]/g,''))||0;
-  const fmtBaht   = n => (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})+' ฿';
+  const fmtBaht   = n => (Number(n)||0).toLocaleString('th-TH',{minimumFractionDigits:2, maximumFractionDigits:2})+' ฿';
 
   function recalcTotal(){
     let sum = 0;
@@ -288,8 +292,9 @@ function imgsrc($v){
     totalCell.textContent = fmtBaht(sum);
   }
   function updateDeleteBtn(){
-    const any = tbody.querySelectorAll('.row-check:checked').length > 0;
-    btnDelete.disabled = !any;
+    const sel = tbody.querySelectorAll('.row-check:checked').length;
+    btnDelete.disabled = sel === 0;
+    selInfo.textContent = sel>0 ? `เลือกไว้ ${sel} รายการ` : 'ยังไม่ได้เลือกสินค้า';
   }
   function syncSelectAll(){
     const all = tbody.querySelectorAll('.row-check').length;
@@ -311,15 +316,12 @@ function imgsrc($v){
   btnEdit?.addEventListener('click', ()=>{
     btnEdit.classList.toggle('active');
     table.classList.toggle('editing');
-    if(!table.classList.contains('editing')){
-      setAllRows(false);
-    }
+    if(!table.classList.contains('editing')) setAllRows(false);
     toggleMobileAllVisibility();
   });
 
   checkAll?.addEventListener('change', ()=> setAllRows(checkAll.checked));
   mobileAll?.addEventListener('change', ()=> setAllRows(mobileAll.checked));
-
   addEventListener('resize', toggleMobileAllVisibility);
   toggleMobileAllVisibility();
 

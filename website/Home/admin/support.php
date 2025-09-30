@@ -37,6 +37,13 @@ if ($active_uid>0) {
   $row = $conn->query("SELECT username FROM users WHERE id={$active_uid}")->fetch_assoc();
   $cust_name = $row['username'] ?? ('UID '.$active_uid);
 }
+$noti_unread = 0;
+$uid = (int)$_SESSION['user_id'];
+if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=? AND is_read=0")) {
+  $st->bind_param('i', $uid); $st->execute();
+  $noti_unread = (int)($st->get_result()->fetch_assoc()['c'] ?? 0);
+  $st->close();
+}
 ?>
 <!doctype html>
 <html lang="th" data-theme="light">
@@ -112,6 +119,21 @@ if ($active_uid>0) {
     </div>
     <div class="d-flex align-items-center gap-2">
       <a class="btn btn-outline-secondary" href="../index.php" title="หน้าร้าน"><i class="bi bi-house"></i></a>
+      <div class="dropdown">
+        <a class="btn btn-light border position-relative" data-bs-toggle="dropdown">
+          <i class="bi bi-bell"></i>
+          <span id="notif-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger <?= $noti_unread? '' : 'd-none' ?>"><?= (int)$noti_unread ?></span>
+        </a>
+        <div class="dropdown-menu dropdown-menu-end glass p-0" style="min-width:360px">
+          <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
+            <div class="fw-semibold">การแจ้งเตือน</div>
+            <button class="btn btn-sm btn-link" id="notif-mark-read">อ่านทั้งหมด</button>
+          </div>
+          <div id="notif-list" style="max-height:360px; overflow:auto">
+            <div class="p-3 text-center text-muted">กำลังโหลด...</div>
+          </div>
+          <div class="text-center small text-muted py-2 border-top">อัปเดตอัตโนมัติ</div>
+        </div>
       <a class="btn btn-outline-secondary" href="dashboard.php" title="แดชบอร์ด"><i class="bi bi-speedometer2"></i></a>
       <button class="btn btn-outline-secondary" id="themeToggle" title="สลับโหมด"><i class="bi bi-moon-stars"></i></button>
       <a class="btn btn-outline-danger" href="../logout.php" title="ออกจากระบบ"><i class="bi bi-box-arrow-right"></i></a>
@@ -129,6 +151,7 @@ if ($active_uid>0) {
       <a class="side-a" href="tradein_requests.php"><i class="bi bi-arrow-left-right me-2"></i> Trade-in</a>
       <a class="side-a" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> Service</a>
       <a class="side-a" href="users.php"><i class="bi bi-people me-2"></i> Users</a>
+      <a class="side-a" href="coupons_list.php"><i class="bi bi-ticket-detailed me-2"></i> Coupons</a>
       <a class="side-a active" href="support.php"><i class="bi bi-chat-dots me-2"></i> กล่องข้อความ</a>
     </div>
     <div class="p-3 border-top">
@@ -331,6 +354,47 @@ if(uid){
   box.innerHTML = `<div class="p-3 text-center text-muted">เลือกผู้ใช้จากด้านซ้ายเพื่อเริ่มคุย</div>`;
   stat.textContent = '—';
 }
+
+/* ===== Notifications ===== */
+const badge   = document.getElementById('notif-badge');
+const listEl  = document.getElementById('notif-list');
+const markBtn = document.getElementById('notif-mark-read');
+function escapeHtml(s){ const d=document.createElement('div'); d.innerText=s||''; return d.innerHTML; }
+function fmtTime(iso){ try{ const d=new Date(iso.replace(' ','T')); return d.toLocaleString(); }catch(e){ return iso; } }
+function linkFor(it){
+  if (it.type === 'cancel_request' && it.ref_id) return `orders.php?status=cancel_requested#row-${it.ref_id}`;
+  if (it.type === 'order_status'   && it.ref_id) return `order_detail.php?id=${it.ref_id}`;
+  if (it.type === 'payment_status' && it.ref_id) return `order_detail.php?id=${it.ref_id}`;
+  if (it.type === 'support_msg') return `support.php`;
+  if (it.type === 'calendar') return `calendar.php`;
+  return 'orders.php';
+}
+function renderItems(items){
+  if(!items || items.length===0){
+    listEl.innerHTML = `<div class="p-3 text-center text-muted">ยังไม่มีการแจ้งเตือน</div>`;
+    return;
+  }
+  listEl.innerHTML = items.map(it=>`
+    <a class="dropdown-item d-block ${it.is_read==0?'bg-light':''}" href="${linkFor(it)}">
+      <div class="fw-semibold">${escapeHtml(it.title||'')}</div>
+      ${it.message ? `<div class="small">${escapeHtml(it.message)}</div>` : ''}
+      <div class="small text-muted">${fmtTime(it.created_at)}</div>
+    </a>
+  `).join('');
+}
+async function refreshCount(){
+  try{ const r = await fetch('../notify_api.php?action=count'); const j = await r.json();
+       const c = j.count||0; if(c>0){ badge.classList.remove('d-none'); badge.textContent=c; } else { badge.classList.add('d-none'); }
+  }catch(_){}
+}
+async function refreshList(){
+  try{ const r = await fetch('../notify_api.php?action=list&limit=15'); const j = await r.json(); renderItems(j.items||[]); }catch(_){}
+}
+markBtn?.addEventListener('click', async ()=>{
+  await fetch('../notify_api.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'action=mark_all_read' });
+  refreshCount(); refreshList();
+});
+refreshCount(); refreshList(); setInterval(refreshCount, 30000);
 </script>
 </body>
 </html>

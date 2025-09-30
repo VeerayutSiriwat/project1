@@ -105,13 +105,92 @@ $sql_latest = "
 ";
 $latest = $conn->query($sql_latest)->fetch_all(MYSQLI_ASSOC);
 
-/* ===== Service KPIs ===== */
-$repair_counts = ['all'=>0,'urgent'=>0,'queued'=>0,'repairing'=>0,'done'=>0];
-$repair_counts['all']    = (int)$conn->query("SELECT COUNT(*) c FROM service_tickets")->fetch_assoc()['c'];
-$repair_counts['urgent'] = (int)$conn->query("SELECT COUNT(*) c FROM service_tickets WHERE urgency='urgent'")->fetch_assoc()['c'];
-$repair_counts['queued'] = (int)$conn->query("SELECT COUNT(*) c FROM service_tickets WHERE status IN ('queue','queued')")->fetch_assoc()['c'];
-$repair_counts['repairing'] = (int)$conn->query("SELECT COUNT(*) c FROM service_tickets WHERE status='repairing'")->fetch_assoc()['c'];
-$repair_counts['done'] = (int)$conn->query("SELECT COUNT(*) c FROM service_tickets WHERE status IN ('done','returned','completed')")->fetch_assoc()['c'];
+/* ===== Service KPIs (ใช้สถานะล่าสุด + ตัดงานปิดแล้วออกจาก urgent) ===== */
+$svcKpiSql = "
+  SELECT
+    COUNT(*) AS allc,
+
+    /* urgent = เร่งด่วน 'ที่ยังเปิดอยู่' เท่านั้น */
+    SUM(
+      CASE
+        WHEN st.urgency='urgent'
+         AND (
+           CASE
+             WHEN COALESCE(ls.last_status, st.status) IN ('confirm','queue','queued') THEN 'queued'
+             ELSE COALESCE(ls.last_status, st.status)
+           END
+         ) NOT IN ('done','returned','completed','cancelled')
+        THEN 1 ELSE 0
+      END
+    ) AS urgent,
+
+    /* แยกสถานะตาม effective status */
+    SUM(
+      CASE
+        WHEN (
+          CASE
+            WHEN COALESCE(ls.last_status, st.status) IN ('confirm','queue','queued') THEN 'queued'
+            ELSE COALESCE(ls.last_status, st.status)
+          END
+        ) = 'queued'
+        THEN 1 ELSE 0
+      END
+    ) AS queued,
+
+    SUM(
+      CASE
+        WHEN (
+          CASE
+            WHEN COALESCE(ls.last_status, st.status) IN ('confirm','queue','queued') THEN 'queued'
+            ELSE COALESCE(ls.last_status, st.status)
+          END
+        ) = 'repairing'
+        THEN 1 ELSE 0
+      END
+    ) AS repairing,
+
+    SUM(
+      CASE
+        WHEN (
+          CASE
+            WHEN COALESCE(ls.last_status, st.status) IN ('confirm','queue','queued') THEN 'queued'
+            ELSE COALESCE(ls.last_status, st.status)
+          END
+        ) IN ('done','returned','completed')
+        THEN 1 ELSE 0
+      END
+    ) AS donec,
+
+    SUM(
+      CASE
+        WHEN (
+          CASE
+            WHEN COALESCE(ls.last_status, st.status) IN ('confirm','queue','queued') THEN 'queued'
+            ELSE COALESCE(ls.last_status, st.status)
+          END
+        ) = 'cancelled'
+        THEN 1 ELSE 0
+      END
+    ) AS cancelled
+
+  FROM service_tickets st
+  LEFT JOIN (
+    /* สถานะล่าสุดจากไทม์ไลน์ */
+    SELECT ticket_id,
+           SUBSTRING_INDEX(GROUP_CONCAT(status ORDER BY id DESC), ',', 1) AS last_status
+    FROM service_status_logs
+    GROUP BY ticket_id
+  ) ls ON ls.ticket_id = st.id
+";
+$svc = $conn->query($svcKpiSql)->fetch_assoc();
+$repair_counts = [
+  'all'       => (int)($svc['allc'] ?? 0),
+  'urgent'    => (int)($svc['urgent'] ?? 0),
+  'queued'    => (int)($svc['queued'] ?? 0),
+  'repairing' => (int)($svc['repairing'] ?? 0),
+  'done'      => (int)($svc['donec'] ?? 0),
+  'cancelled' => (int)($svc['cancelled'] ?? 0),
+];
 
 /* ===== Trade-in KPIs ===== */
 $trade_counts = ['all'=>0,'reviewing'=>0,'offered'=>0,'completed'=>0];
@@ -121,6 +200,7 @@ if ($conn->query("SHOW TABLES LIKE 'tradein_requests'")->num_rows){
   $trade_counts['offered']   = (int)$conn->query("SELECT COUNT(*) c FROM tradein_requests WHERE status='offered'")->fetch_assoc()['c'];
   $trade_counts['completed'] = (int)$conn->query("SELECT COUNT(*) c FROM tradein_requests WHERE status IN ('completed','accepted')")->fetch_assoc()['c'];
 }
+
 /* helper: ตรวจว่าตารางมีคอลัมน์นี้ไหม */
 function has_col(mysqli $conn, string $table, string $col): bool {
   $table = preg_replace('/[^a-zA-Z0-9_]/','',$table);
@@ -205,25 +285,24 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
     :root{
       --bg:#f6f8fb; --panel:#ffffffcc; --border:#e9eef5; --text:#0f172a; --muted:#64748b;
       --primary:#4f46e5; --card-shadow:0 18px 60px rgba(2,6,23,.06);
-    }
-    body{
-      background:
-        radial-gradient(1100px 420px at -10% -10%, #1e3a8a22, transparent 60%),
-        radial-gradient(1100px 420px at 110% -10%, #7c3aed22, transparent 60%),
-        var(--bg);
-      color:var(--text);
-    }
+    }html[data-theme="dark"]{ --bg:#0b1220; --panel:rgba(17,24,39,.7); --border:#1f2a44; --text:#e5e7eb; --muted:#9aa4b2; --card-shadow:0 20px 70px rgba(2,6,23,.45);}
+    body{background:var(--bg); color:var(--text);}
     .topbar{backdrop-filter:blur(10px); background:linear-gradient(180deg,#ffffffcc,#ffffffaa); border-bottom:1px solid var(--border);}
+    html[data-theme="dark"] .topbar{ background:linear-gradient(180deg,#0f172acc,#0f172aa6); }
     .app{display:grid; grid-template-columns:260px 1fr; gap:24px;}
     @media (max-width:992px){ .app{grid-template-columns:1fr} }
     .sidebar{position:sticky; top:90px; border:1px solid var(--border); border-radius:18px; background:var(--panel); box-shadow:var(--card-shadow); overflow:hidden;}
     .side-a{display:flex; align-items:center; gap:10px; padding:12px 16px; text-decoration:none; color:inherit; border-left:3px solid transparent;}
-    .side-a:hover{background:#eef3ff}
-    .side-a.active{background:#eef3ff; border-left-color:var(--primary)}
+    .side-a:hover{background:#eef3ff}html[data-theme="dark"] .side-a:hover{background:#0f1a2d}
+    .side-a.active{background:#eef3ff; border-left-color:var(--primary)}html[data-theme="dark"] .side-a.active{background:#0e1f3e}
     .glass{border:1px solid var(--border); background:var(--panel); border-radius:18px; box-shadow:var(--card-shadow);}
     .kpi .icon{width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#fff; background:#4f46e5}
+    .kpi-soft{background:linear-gradient(145deg,#ffffff,#f7faff); border:1px solid #eaf0fa; border-radius:16px; box-shadow:0 10px 40px rgba(2,6,23,.06);}
     .table>:not(caption)>*>*{ border-color:var(--border) }
     .hero{background:linear-gradient(135deg,#f8fbff,#f6f9ff); border:1px solid #e7eef7; border-radius:16px;}
+    .chip{display:inline-flex; align-items:center; gap:6px; background:#eaf2ff; border:1px solid #cfe1ff; padding:4px 10px; border-radius:999px; font-weight:600; font-size:.85rem;}
+     html[data-theme="dark"] .chip{ background:#0f1b33; border-color:#1d2b52; }
+     
   </style>
 </head>
 <body>
@@ -253,6 +332,10 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
           <div class="text-center small text-muted py-2 border-top">อัปเดตอัตโนมัติ</div>
         </div>
       </div>
+      <!-- theme -->
+      <button class="btn btn-outline-secondary" id="themeToggle" title="สลับโหมด">
+        <i class="bi bi-moon-stars"></i>
+      </button>
       <a class="btn btn-outline-secondary" href="../index.php"><i class="bi bi-house"></i></a>
       <a class="btn btn-outline-danger" href="../logout.php"><i class="bi bi-box-arrow-right"></i></a>
     </div>
@@ -270,6 +353,7 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
       <a class="side-a" href="tradein_requests.php"><i class="bi bi-arrow-left-right me-2"></i> Trade-in</a>
       <a class="side-a" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> Service</a>
       <a class="side-a" href="users.php"><i class="bi bi-people me-2"></i> Users</a>
+      <a class="side-a" href="coupons_list.php"><i class="bi bi-ticket-detailed me-2"></i> Coupons</a>
       <a class="side-a" href="support.php"><i class="bi bi-chat-dots me-2"></i> กล่องข้อความ</a>
     </div>
   </aside>
@@ -293,7 +377,7 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
     <!-- KPIs -->
     <div class="row g-3">
       <div class="col-sm-6 col-xl-3">
-        <div class="glass p-3 kpi h-100">
+        <div class="glass p-3 kpi h-100 kpi-soft">
           <div class="d-flex align-items-center gap-3">
             <div class="icon"><i class="bi bi-people"></i></div>
             <div>
@@ -305,7 +389,7 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
         </div>
       </div>
       <div class="col-sm-6 col-xl-3">
-        <div class="glass p-3 kpi h-100">
+        <div class="glass p-3 kpi h-100 kpi-soft">
           <div class="d-flex align-items-center gap-3">
             <div class="icon" style="background:#0ea5e9"><i class="bi bi-box-seam"></i></div>
             <div>
@@ -317,7 +401,7 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
         </div>
       </div>
       <div class="col-sm-6 col-xl-3">
-        <div class="glass p-3 kpi h-100">
+        <div class="glass p-3 kpi h-100 kpi-soft">
           <div class="d-flex align-items-center gap-3">
             <div class="icon" style="background:#10b981"><i class="bi bi-receipt"></i></div>
             <div>
@@ -329,7 +413,7 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
         </div>
       </div>
       <div class="col-sm-6 col-xl-3">
-        <div class="glass p-3 kpi h-100">
+        <div class="glass p-3 kpi h-100 kpi-soft">
           <div class="d-flex align-items-center gap-3">
             <div class="icon" style="background:#f59e0b"><i class="bi bi-bank2"></i></div>
             <div>
@@ -350,26 +434,46 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
             <h5 class="m-0"><i class="bi bi-wrench me-2"></i>งานซ่อม</h5>
             <a class="btn btn-sm btn-outline-primary" href="service_tickets.php">ไปที่คิวซ่อม</a>
           </div>
-          <div class="row text-center">
-            <div class="col"><div class="fs-3 fw-bold"><?= $repair_counts['all'] ?></div><div class="text-muted">ทั้งหมด</div></div>
-            <div class="col"><div class="fs-3 fw-bold text-danger"><?= $repair_counts['urgent'] ?></div><div class="text-muted">เร่งด่วน</div></div>
-            <div class="col"><div class="fs-4 fw-bold"><?= $repair_counts['queued'] ?></div><div class="text-muted">เข้าคิว</div></div>
-            <div class="col"><div class="fs-4 fw-bold"><?= $repair_counts['repairing'] ?></div><div class="text-muted">กำลังซ่อม</div></div>
-            <div class="col"><div class="fs-4 fw-bold text-success"><?= $repair_counts['done'] ?></div><div class="text-muted">เสร็จ</div></div>
+          <div class="row text-center g-3">
+            <div class="col-6 col-md">
+              <div class="fs-3 fw-bold"><?= $repair_counts['all'] ?></div>
+              <div class="text-muted">ทั้งหมด</div>
+            </div>
+            <div class="col-6 col-md">
+              <div class="fs-3 fw-bold text-danger"><?= $repair_counts['urgent'] ?></div>
+              <div class="text-muted">เร่งด่วน</div>
+            </div>
+            <div class="col-6 col-md">
+              <div class="fs-3 fw-bold"><?= $repair_counts['queued'] ?></div>
+              <div class="text-muted">เข้าคิว</div>
+            </div>
+            <div class="col-6 col-md">
+              <div class="fs-3 fw-bold"><?= $repair_counts['repairing'] ?></div>
+              <div class="text-muted">กำลังซ่อม</div>
+            </div>
+            <div class="col-6 col-md">
+              <div class="fs-3 fw-bold text-success"><?= $repair_counts['done'] ?></div>
+              <div class="text-muted">เสร็จ</div>
+            </div>
+            <div class="col-6 col-md">
+              <div class="fs-3 fw-bold text-secondary"><?= $repair_counts['cancelled'] ?></div>
+              <div class="text-muted">ยกเลิก</div>
+            </div>
           </div>
         </div>
       </div>
+
       <div class="col-lg-6">
         <div class="glass p-3 h-100">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <h5 class="m-0"><i class="bi bi-arrow-left-right me-2"></i>เทิร์นสินค้า</h5>
             <a class="btn btn-sm btn-outline-success" href="tradein_requests.php">ไปที่เทิร์น</a>
           </div>
-          <div class="row text-center">
-            <div class="col"><div class="fs-3 fw-bold"><?= $trade_counts['all'] ?></div><div class="text-muted">ทั้งหมด</div></div>
-            <div class="col"><div class="fs-4 fw-bold"><?= $trade_counts['reviewing'] ?></div><div class="text-muted">กำลังประเมิน</div></div>
-            <div class="col"><div class="fs-4 fw-bold"><?= $trade_counts['offered'] ?></div><div class="text-muted">มีราคาเสนอ</div></div>
-            <div class="col"><div class="fs-4 fw-bold text-success"><?= $trade_counts['completed'] ?></div><div class="text-muted">เสร็จสิ้น</div></div>
+          <div class="row text-center g-3">
+            <div class="col-6 col-md"><div class="fs-3 fw-bold"><?= $trade_counts['all'] ?></div><div class="text-muted">ทั้งหมด</div></div>
+            <div class="col-6 col-md"><div class="fs-4 fw-bold"><?= $trade_counts['reviewing'] ?></div><div class="text-muted">กำลังประเมิน</div></div>
+            <div class="col-6 col-md"><div class="fs-4 fw-bold"><?= $trade_counts['offered'] ?></div><div class="text-muted">มีราคาเสนอ</div></div>
+            <div class="col-6 col-md"><div class="fs-4 fw-bold text-success"><?= $trade_counts['completed'] ?></div><div class="text-muted">เสร็จสิ้น</div></div>
           </div>
         </div>
       </div>
@@ -439,8 +543,8 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
               <td><?php $pbadge = $PAY_BADGE[$o['payment_status']] ?? 'secondary'; ?>
                 <span class="badge bg-<?= $pbadge ?>"><?= h($PAY_THAI[$o['payment_status']] ?? $o['payment_status']) ?></span>
               </td>
-              <td><?php $eff = effective_status_of($o); $obadge = $ORDER_BADGE[$eff] ?? 'secondary'; ?>
-                <span class="badge bg-<?= $obadge ?>"><?= h($ORDER_THAI[$eff] ?? $eff) ?></span>
+              <td><?php $effst = effective_status_of($o); $obadge = $ORDER_BADGE[$effst] ?? 'secondary'; ?>
+                <span class="badge bg-<?= $obadge ?>"><?= h($ORDER_THAI[$effst] ?? $effst) ?></span>
               </td>
               <td><?= h($o['created_at']) ?></td>
               <td><a href="order_detail.php?id=<?= (int)$o['id'] ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> ดู</a></td>
@@ -489,13 +593,17 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-/* theme save */
+/* ===== theme toggle (remember) ===== */
 (function(){
   const html = document.documentElement;
   const saved = localStorage.getItem('admin-theme') || 'light';
   html.setAttribute('data-theme', saved);
+  document.getElementById('themeToggle')?.addEventListener('click', ()=>{
+    const cur = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', cur);
+    localStorage.setItem('admin-theme', cur);
+  });
 })();
-
 /* ===== Notifications ===== */
 const badge   = document.getElementById('notif-badge');
 const listEl  = document.getElementById('notif-list');

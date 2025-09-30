@@ -205,6 +205,7 @@ if ($isLoggedIn) {
               <li><a class="dropdown-item" href="profile.php"><i class="bi bi-person me-2"></i>โปรไฟล์</a></li>
               <li><a class="dropdown-item" href="my_orders.php"><i class="bi bi-receipt me-2"></i>ประวัติการสั่งซื้อ</a></li>
               <li><a class="dropdown-item" href="service_my.php"><i class="bi bi-clipboard-check"></i> สถานะงานซ่อม/เทิร์น</a></li>
+              <li><a class="dropdown-item" href="coupons_my.php"><i class="bi bi-ticket-perforated me-2"></i> คูปองของฉัน</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item text-danger" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i>ออกจากระบบ</a></li>
             </ul>

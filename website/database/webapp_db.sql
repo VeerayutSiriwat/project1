@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 26, 2025 at 09:43 AM
+-- Generation Time: Sep 30, 2025 at 11:28 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -76,6 +76,79 @@ CREATE TABLE `categories` (
 INSERT INTO `categories` (`id`, `name`, `slug`, `created_at`) VALUES
 (1, 'เครื่องตัดหญ้า', 'brush-cutter', '2025-08-19 17:10:52'),
 (2, 'อะไหล่ & อุปกรณ์เสริม', 'spare-parts', '2025-08-19 17:10:52');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `coupons`
+--
+
+CREATE TABLE `coupons` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `tradein_id` int(11) DEFAULT NULL,
+  `code` varchar(40) NOT NULL,
+  `type` enum('percent','fixed') NOT NULL,
+  `value` decimal(10,2) NOT NULL,
+  `note` varchar(255) DEFAULT NULL,
+  `max_discount` decimal(10,2) DEFAULT NULL,
+  `min_order_total` decimal(10,2) DEFAULT NULL,
+  `starts_at` datetime DEFAULT NULL,
+  `ends_at` datetime DEFAULT NULL,
+  `uses_limit` int(10) UNSIGNED DEFAULT NULL,
+  `per_user_limit` int(10) UNSIGNED DEFAULT 1,
+  `applies_to` enum('all','products','services','tradein') DEFAULT 'all',
+  `allow_stack_with_discount_price` tinyint(1) NOT NULL DEFAULT 0,
+  `status` enum('active','inactive') DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `coupons`
+--
+
+INSERT INTO `coupons` (`id`, `user_id`, `tradein_id`, `code`, `type`, `value`, `note`, `max_discount`, `min_order_total`, `starts_at`, `ends_at`, `uses_limit`, `per_user_limit`, `applies_to`, `allow_stack_with_discount_price`, `status`, `created_at`, `updated_at`) VALUES
+(1, 4, 3, 'TR0003-6F06B2', 'fixed', 1000.00, 'Trade-in credit TR-3', NULL, 0.00, '2025-10-01 01:46:28', '2025-12-30 01:46:28', 1, 1, 'all', 0, 'active', '2025-09-30 18:46:28', NULL),
+(2, NULL, NULL, 'CCSA1234', 'percent', 10.00, '', NULL, 0.00, NULL, '2025-10-02 02:48:00', 10, 10, 'all', 1, 'inactive', '2025-09-30 19:48:47', '2025-09-30 20:32:49');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `coupon_categories`
+--
+
+CREATE TABLE `coupon_categories` (
+  `coupon_id` bigint(20) UNSIGNED NOT NULL,
+  `category_id` int(10) UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `coupon_products`
+--
+
+CREATE TABLE `coupon_products` (
+  `coupon_id` bigint(20) UNSIGNED NOT NULL,
+  `product_id` bigint(20) UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `coupon_usages`
+--
+
+CREATE TABLE `coupon_usages` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `coupon_id` bigint(20) UNSIGNED NOT NULL,
+  `user_id` bigint(20) UNSIGNED NOT NULL,
+  `order_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `context` enum('order','service','tradein') DEFAULT 'order',
+  `amount` decimal(10,2) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -267,8 +340,14 @@ INSERT INTO `notifications` (`id`, `user_id`, `type`, `ref_id`, `title`, `messag
 (166, 4, 'payment_status', 43, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #43 สถานะการชำระเงิน: ยังไม่ชำระ', 1, '2025-09-05 09:41:38'),
 (167, 4, 'order_status', 43, 'คำสั่งซื้อ #43: ยกเลิก', 'คำสั่งซื้อ #43: ยกเลิก', 1, '2025-09-05 09:41:39'),
 (168, 4, 'payment_status', 43, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #43 สถานะการชำระเงิน: หมดเวลาชำระ', 1, '2025-09-05 09:41:40'),
-(169, 4, 'schedule_proposed', 9, 'มีข้อเสนอเวลานัดใหม่', 'แอดมินเสนอเวลา: 2025-09-07 13:50:00 - 2025-09-07 15:20:00', 0, '2025-09-05 18:01:54'),
-(170, 3, 'schedule_confirmed', 9, 'ลูกค้ายืนยันเวลานัด', 'ลูกค้ายืนยันเวลานัดของใบงาน ST-9', 1, '2025-09-05 18:02:59');
+(169, 4, 'schedule_proposed', 9, 'มีข้อเสนอเวลานัดใหม่', 'แอดมินเสนอเวลา: 2025-09-07 13:50:00 - 2025-09-07 15:20:00', 1, '2025-09-05 18:01:54'),
+(170, 3, 'schedule_confirmed', 9, 'ลูกค้ายืนยันเวลานัด', 'ลูกค้ายืนยันเวลานัดของใบงาน ST-9', 1, '2025-09-05 18:02:59'),
+(171, 3, 'new_order_cod', 44, 'ออเดอร์ใหม่ (ปลายทาง)', 'คำสั่งซื้อ #44 จาก user', 1, '2025-09-30 20:00:20'),
+(172, 4, 'order_status', 44, 'สั่งซื้อสำเร็จ', 'คำสั่งซื้อ #44 ชำระแบบเก็บเงินปลายทาง', 1, '2025-09-30 20:00:20'),
+(173, 4, 'order_status', 44, 'คำสั่งซื้อ #44: ยกเลิก', 'คำสั่งซื้อ #44: ยกเลิก', 1, '2025-09-30 20:00:51'),
+(174, 3, 'new_order_cod', 45, 'ออเดอร์ใหม่ (ปลายทาง)', 'คำสั่งซื้อ #45 จาก user', 1, '2025-09-30 20:49:12'),
+(175, 4, 'order_status', 45, 'สั่งซื้อสำเร็จ', 'คำสั่งซื้อ #45 ชำระแบบเก็บเงินปลายทาง', 0, '2025-09-30 20:49:12'),
+(176, 4, 'order_status', 45, 'คำสั่งซื้อ #45: ยกเลิก', 'คำสั่งซื้อ #45: ยกเลิก', 0, '2025-09-30 20:49:54');
 
 -- --------------------------------------------------------
 
@@ -339,7 +418,9 @@ INSERT INTO `orders` (`id`, `user_id`, `total_price`, `status`, `payment_status`
 (40, 4, 1860.00, 'cancelled', 'expired', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-09-02 16:44:01', '2025-09-02 23:59:01', '2025-09-02 17:04:39', 'bank', NULL, NULL, NULL),
 (41, 4, 1860.00, 'cancelled', 'expired', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-09-02 17:08:59', '2025-09-03 00:23:59', '2025-09-03 09:17:57', 'bank', NULL, NULL, NULL),
 (42, 4, 8495.00, 'cancelled', 'expired', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-09-03 09:59:13', '2025-09-03 17:14:13', '2025-09-03 10:02:00', 'bank', 'slip_42_1756893664_6305f17b.png', 'กดผิด', '2025-09-03 10:00:12'),
-(43, 4, 1860.00, 'cancelled', 'expired', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-09-05 09:40:47', '2025-09-05 16:55:47', '2025-09-05 09:41:40', 'bank', 'slip_43_1757065264_b9604b82.png', NULL, NULL);
+(43, 4, 1860.00, 'cancelled', 'expired', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-09-05 09:40:47', '2025-09-05 16:55:47', '2025-09-05 09:41:40', 'bank', 'slip_43_1757065264_b9604b82.png', NULL, NULL),
+(44, 4, 5100.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-09-30 20:00:20', NULL, '2025-09-30 20:00:51', 'cod', NULL, NULL, NULL),
+(45, 4, 1860.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-09-30 20:49:12', NULL, '2025-09-30 20:49:54', 'cod', NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -399,7 +480,9 @@ INSERT INTO `order_items` (`id`, `order_id`, `product_id`, `quantity`, `unit_pri
 (40, 40, 19, 1, 1860.00),
 (41, 41, 19, 1, 1860.00),
 (42, 42, 17, 1, 8495.00),
-(43, 43, 19, 1, 1860.00);
+(43, 43, 19, 1, 1860.00),
+(44, 44, 10, 1, 5100.00),
+(45, 45, 19, 1, 1860.00);
 
 -- --------------------------------------------------------
 
@@ -431,7 +514,7 @@ INSERT INTO `products` (`id`, `category_id`, `seller_id`, `name`, `description`,
 (5, 2, NULL, 'ใบมีดตัดหญ้า 9 นิ้ว 10000 RPM ใบมีดดิสก์ 14/20 ฟัน สำหรับหัวตัดหญ้า', 'ใบมีดตัดหญ้าขนาด 9 นิ้ว 10000 RPM ใบมีดเลื่อยโซ่เหล็กสำหรับตัดหญ้าหัวตัดหญ้าสำหรับเครื่องตัดหญ้าและกำจัดวัชพืชคุณสมบัติ:\r\n1. ใช้งานง่าย: ตัดแต่งสนามหญ้าและพุ่มไม้ของคุณได้อย่างรวดเร็วและง่ายดายด้วยใบมีดตัดหญ้าของเรา เครื่องมือชิ้นนี้จัดการกับวัสดุใด ๆ ได้อย่างไม่มีปัญหา ทำให้คุณไม่ต้องยุ่งยาก\r\n2. รวดเร็วและมีประสิทธิภาพ: เวลาของคุณมีค่า ใบมีดเลื่อยโซ่ของเราจะทำให้คุณไม่เสียเวลา! มันไม่ทิ้งซากเศษวัสดุไว้และต้องการการทำความสะอาดเพียงเล็กน้อย\r\n3. ฟังก์ชันหลากหลาย: สามารถจัดการกับต้นไม้ขนาดเล็ก พุ่มไม้ พุ่มหญ้า และวัชพืชได้อย่างง่ายดายด้วยเครื่องมือนี้ ฟันเลื่อยโซ่อยู่ระหว่างแผ่นเหล็กอย่างปลอดภัย\r\n4. การใช้งานที่หลากหลาย: หัวตัดหญ้าเหล็กของเราเหมาะสำหรับการตัด การแกะสลัก และการขัดรูปทรง มันทนทาน ใช้งานง่ายและมีการใช้งานที่หลากหลาย!5. ประสิทธิภาพความเร็วสูง: ออกแบบมาพร้อมฟันเลื่อยโซ่ที่สามารถทำความเร็วได้สูงถึง 10,000 RPM ใบมีด 14/20 ฟันนี้มอบพลังการตัดที่ไม่มีใครเทียบได้ ความสามารถในการทำงานที่ความเร็วสูง\r\n5. ประสิทธิภาพความเร็วสูง: ออกแบบด้วยฟันเลื่อยโซ่ที่สามารถทำความเร็วได้ถึง 10,000 RPM ใบมีดแบบ 14/20 ฟันนี้มอบพลังการตัดที่ไม่มีใครเทียบได้ ความสามารถในการทำงานที่ความเร็วสูงช่วยให้การตัดแต่งมีประสิทธิภาพและแม่นยำ ทำให้มันเป็นเครื่องมือที่จำเป็นสำหรับผู้ที่ต้องการรักษาสวนให้สวยงามอย่างง่ายดาย.\r\n\r\nข้อมูลจำเพาะ:วัสดุ: เหล็กกล้าอัลลอยแหล่งที่มา: แผ่นดินใหญ่ของจีนจำนวนฟัน: 20 ฟันขนาดรู: 25.4 มม. (มีวงแหวนลดขนาด, ขนาดรูได้ 20 มม.)ขนาดผลิตภัณฑ์: ประมาณ 230.00x230.00x1.67 มม./9.06x9.06x0.07 นิ้ว', 890.00, NULL, 3, 'pd_1755776535_a261f43e.png', 'active', '2025-08-21 10:13:48', '2025-08-26 17:54:11'),
 (8, 1, NULL, 'เครื่องตัดหญ้าไร้สาย 80 โวลต์ MAKITA รุ่น UR012GZ02', 'รายละเอียดสินค้า\r\n• ใช้ได้กับงานหนักเนื่องจากมีกำลังขับสูง ใกล้เคียงกับเครื่องตัดหญ้ารุ่น 40 มล.\r\n• ที่จับถอดประกอบได้โดยไม่ต้องใช้เครื่องมือช่วยเพื่อการใช้งานที่สะดวกสบายและการจัดเก็บที่กะทัดรัด\r\n• เทคโนโลยีขับเคลื่อนแรงบิดอัตโนมัติ (ADT) ปรับความเร็วและแรงบิดระหว่างการทำงานเพื่อประสิทธิภาพสูงสุด\r\n• เทคโนโลยีการตรวจจับการตอบสนองแบบแอคทีฟ (AFT) จะปิดมอเตอร์หากการหมุนของใบมีดถูกบังคับให้หยุดกะทันหัน\r\n• มอเตอร์ติดท้ายรถทำให้เครื่องมือมีความสมดุลคล้ายกับเครื่องตัดหญ้าเครื่องยนต์\r\n• ตัวเลือกความเร็ว 3 ระดับ (ต่ำ / กลาง / สูง) ช่วยให้ผู้ปฏิบัติงานสามารถจับคู่ความเร็วกับอุปกรณ์เสริมได้อย่างเหมาะสม\r\n• ขนาดแกนหมุน : M10 x 1.25 LH\r\n• ความกว้างในการตัด : ใบตัดโลหะ : 305 มม. (12 นิ้ว)\r\n• ความกว้างในการตัด : ใบเลื่อย TCT : 255 มม. (10 นิ้ว)\r\n• ความกว้างในการตัด : หัวตัดไนลอน : 480 มม. (18-7/8 นิ้ว)\r\n• ความกว้างในการตัด : ใบตัดพลาสติก : 305 มม. (12 นิ้ว)\r\n• ความเร็วรอบตัวเปล่า : ใบตัดโลหะ (3 / 2 / 1) : 0 – 6,800 / 0 – 5,000 / 0 – 3,500 รอบ/นาที\r\n• ความเร็วรอบตัวเปล่า : หัวตัดไนลอน (3 / 2 / 1) : 0 – 5,000 / 0 – 4,200 / 0 – 3,500 รอบ/นาที\r\n• ความเร็วรอบตัวเปล่า : ใบตัดพลาสติก (305 มม.) (3 / 2 / 1) : 0 – 6,800 / 0 – 5,000 / 0 – 3,500 รอบ/นาทีใช้กับแบตเตอรี่ : BL4020 / BL4025 / BL4040 / BL4050F\r\nใช้กับแท่นชาร์จ : DC40RA / DC40RB', 20853.00, NULL, 10, 'pd_20250822_173021_4ceaa634.png', 'active', '2025-08-22 10:30:21', '2025-08-22 10:30:45'),
 (9, 1, NULL, 'เครื่องตัดหญ้า 2 จังหวะ MXR-411RB 2HP MAXMA', 'รายละเอียดสินค้า\r\n• เครื่องยนต์ : เบนซิน 2 จังหวะ 1 สูบ\r\n• แรงม้า : 2HP 7,000RPM\r\n• ระบายความร้อนด้วยอากาศ\r\n• ปริมาตรกระบอกสูบ : 41 cc\r\n• ความจุถังน้ำมันเชื้อเพลิง : 1 ลิตร\r\n• น้ำหนัก : 8.5 Kg.\r\n• ระบบคันเร่ง: แบบเหนี่ยวไก มีสวิตซ์ดับเครื่องในตัว\r\n• ใช้น้ำมัน : 0.1 ลิตร/นาที\r\n• ลานสตาร์ท : แบบลานเบาพิเศษ', 4150.00, NULL, 20, 'pd_20250822_173307_a2c75374.png', 'active', '2025-08-22 10:33:07', '2025-08-22 10:33:07'),
-(10, 1, NULL, 'เครื่องตัดหญ้า 2 จังหวะ MX-411RB 2HP MAXMA', 'รายละเอียดสินค้า\r\n• แกนตรง : 28 mm.\r\n• เครื่องยนต์เบนซิน : 2 จังหวะ 1 สูบ\r\n• แรงม้า/รอบ : 2HP 7,000RPM\r\n• ระบายความร้อนด้วยอากาศ\r\n• ปริมาตรกระบอกสูบ : 40.2 cc 41 cc\r\n• ความเร็วใบมีด : 5,000-7,000 รอบต่อนาที\r\n• ความจุถังน้ำมัน : 1 ลิตร\r\n• น้ำมันเชื้อเพลิง : (เบนซิน : น้ำมัน 2T) 25:1\r\n• แบบหัว : กันเศษหญ้า\r\n• ระบบคันเร่ง : แบบไกปืน\r\n• การติดเครื่อง : เชือกดึงหมุนกลับ\r\n• แบบด้ามจับ : โค้งรูปตัวY\r\n• เพลา : 9 ฟันมาตรฐาน\r\n• ลานสตาร์ท : ลานเบาแบบพิเศษ', 5100.00, NULL, 9, 'pd_20250822_173412_99fa2ae5.png', 'active', '2025-08-22 10:34:12', '2025-08-22 10:35:34'),
+(10, 1, NULL, 'เครื่องตัดหญ้า 2 จังหวะ MX-411RB 2HP MAXMA', 'รายละเอียดสินค้า\r\n• แกนตรง : 28 mm.\r\n• เครื่องยนต์เบนซิน : 2 จังหวะ 1 สูบ\r\n• แรงม้า/รอบ : 2HP 7,000RPM\r\n• ระบายความร้อนด้วยอากาศ\r\n• ปริมาตรกระบอกสูบ : 40.2 cc 41 cc\r\n• ความเร็วใบมีด : 5,000-7,000 รอบต่อนาที\r\n• ความจุถังน้ำมัน : 1 ลิตร\r\n• น้ำมันเชื้อเพลิง : (เบนซิน : น้ำมัน 2T) 25:1\r\n• แบบหัว : กันเศษหญ้า\r\n• ระบบคันเร่ง : แบบไกปืน\r\n• การติดเครื่อง : เชือกดึงหมุนกลับ\r\n• แบบด้ามจับ : โค้งรูปตัวY\r\n• เพลา : 9 ฟันมาตรฐาน\r\n• ลานสตาร์ท : ลานเบาแบบพิเศษ', 5100.00, NULL, 9, 'pd_20250822_173412_99fa2ae5.png', 'active', '2025-08-22 10:34:12', '2025-09-30 20:00:51'),
 (11, 1, NULL, 'เครื่องตัดหญ้า 4 จังหวะ MX-4UT31 1.2HP MAXMA', 'รายละเอียดสินค้า\r\nกำลังเครื่องยนต์ : 1.5kw 1.2HP\r\nปริมาตรกระบอกสูบ : 31 cc\r\nรอบ/นาที : 7,000 RPM\r\nระบบคาร์บูเรเตอร์ : แบบผ้าปั๊ม\r\nระบบจุดระเบิด : หัวอิเล็กโทรด\r\nความจุถังน้ำมันเชื้อเพลิง : 1.4 ลิตร\r\nระบบสตาร์ทเครื่องยนต์ : เชือกดึงสตาร์ทม้วนกลับอัตโนมัติ\r\nคันเร่งเครื่อง : แบบเหนี่ยวไก สวิทช์ดับเครื่องในตัว\r\nน้ำหนักสินค้า : 11kg\r\nแป๊ปก้าน : 28 mm\r\nเพลา : 9 ฟันมาตรฐาน', 6000.00, NULL, 16, 'pd_20250822_173600_ea3dd6b6.jpg', 'active', '2025-08-22 10:35:17', '2025-08-22 10:36:00'),
 (12, 1, NULL, 'เครื่องตัดหญ้า 2 จังหวะ MXR-411RBC 2HP MAXMA', 'รายละเอียดสินค้า\r\n• เครื่องยนต์เบนซิน : 2 จังหวะ 1 สูบ\r\n•แรงม้า : 2HP 7000RPM\r\n• ระบายความร้อนด้วยอากาศ\r\n• ปริมาตรกระบอกสูบ : 41 cc\r\n• ความจุถังน้ำมันเชื้อเพลิง : 1 ลิตร\r\n• น้ำหนัก : 8.5 กก.\r\n• ระบบคันเร่ง : แบบเหนี่ยวไก มีสวิตซ์ดับเครื่องในตัว\r\n• ใช้น้ำมัน : 0.1 ลิตร/นาที\r\n• ลานสตาร์ท แบบลานเบาพิเศษ', 4255.00, NULL, 10, 'pd_20250822_173706_2d54ff47.png', 'active', '2025-08-22 10:37:06', '2025-08-22 10:37:06'),
 (13, 1, NULL, 'เครื่องตัดหญ้า 2 จังหวะ MXR-CG260 1HP MAXMA', 'รายละเอียดสินค้า\r\n• เครื่องยนต์เบนซิน : เบนซิน 2 จังหวะ 1 สูบ\r\n• กำลังเครื่องยนต์ : 0.75 kw\r\n• ปริมาตรกระบอกสูบ : 25.4 cc\r\n• ความเร็วใบมีด : 7,500 รอบต่อนาที\r\n• ระบบจุดระเบิด : หัวเทียน\r\n• ความจุถังน้ำมันเชื้อเพลิง : 0.96 ลิตร\r\n• ระบบสตาร์ทเครื่อยนต์ : เชือกดึงสตาร์ทม้วนกลับอัตโนมัติ\r\n• น้ำหนักสินค้า : 7 kg\r\n• แป๊ปก้าน : 26 mm.\r\n• แทนเพลา : 9 ฟันมาตรฐาน', 3900.00, 3750.00, 18, 'pd_20250822_173817_e298060d.png', 'active', '2025-08-22 10:38:17', '2025-08-26 18:00:40'),
@@ -440,7 +523,7 @@ INSERT INTO `products` (`id`, `category_id`, `seller_id`, `name`, `description`,
 (16, 1, NULL, 'เครื่องตัดหญ้ารถเข็น 2 จังหวะ MXR-LMG450 MAXMA', 'รายละเอียดสินค้า\r\n• เครื่องยนต์เบนซิน 2 จังหวะ 1 ลูกสูบ\r\n• ปริมาตรกระบอกสูบ 52cc\r\n• เส้นผ่านศูนย์กลางท่อ 26 มิล\r\n• ความเร็วรอบเดินเบา 2,800 RPM\r\n• ความเร็วรอบสูงสุดของใบมีด 9,000 - 10,000 รอบ/นาที(RPM)\r\n• ความจุถังน้ำมันเชื้อเพลิง 1.2 ลิตร \r\n• น้ำมันเชื่อเพลิง (เบนซิน : น้ำมัน 2T) 25:1\r\n• น้ำหนัก 16 kg \r\n• ขนาดบรรจุภัณฑ์ 66x51x35cm', 6995.00, NULL, 6, 'pd_20250822_174109_47c410ea.png', 'active', '2025-08-22 10:41:09', '2025-08-22 10:41:09'),
 (17, 1, NULL, 'รถเข็นตัดหญ้า 2 จังหวะ ปุ่มสตาร์ท MXR-BCW ES430 MAXMA', 'รายละเอียดสินค้า\r\n• เครื่องยนต์เบนซิน : 2 จังหวะ 1 ลูกสูบ\r\n• มีระบบ สตาร์ทอัตโนมัติโดยปุ่มกด\r\n• ปริมาตรกระบอกสูบ : 42.7cc\r\n• เส้นผ่านศูนย์กลางท่อ : 26 มิล\r\n• ความเร็วรอบเดินเบา : 2,800 RPM\r\n• ความเร็วรอบสูงสุดของใบมีด : 9,000 - 10,000 รอบ/นาที(RPM)\r\n• ความจุถังน้ำมันเชื้อเพลิง : 1.2 ลิตร\r\n• น้ำมันเชื่อเพลิง (เบนซิน : น้ำมัน 2T) 25:1\r\n• น้ำหนัก : 15 kg\r\n• ขนาดบรรจุภัณฑ์ : 58x47x32cm', 8495.00, NULL, 5, 'pd_20250822_174209_566161dd.png', 'active', '2025-08-22 10:42:09', '2025-08-22 21:27:42'),
 (18, 1, NULL, 'NM-411 ตัดหญ้าสะพายข้าง 2 จังหวะ', 'NEW WEST ตัดหญ้าสะพายข้าง 2 จังหวะ NM-411 สีเขียว\r\n\r\nประเทศผู้ผลิต:   China\r\n\r\nการรับประกัน:   -', 4995.00, NULL, 0, 'pd_20250822_174402_c2764063.jpg', 'active', '2025-08-22 10:44:02', '2025-08-22 10:44:02'),
-(19, 1, NULL, 'EUROX เครื่องตัดหญ้าไร้สาย 21 โวลต์ รุ่นพับได้ R', 'รายละเอียดสินค้า\r\n- ใบตัดหญ้าผลิตจากพลาสติก PA66 แข็งแรงและคมกริบ\r\n- บังใบขนาดใหญ่เพิ่มความปลอดภัยและสามารถใส่ล้อได้\r\n- ก้านตัดหญ้าสามารถพับได้ พกพาสะดวก และใช้งานง่าย\r\n- มือจับสามารถเลื่อนปรับระดับได้ตามต้องการ มีน้ำหนักเบา\r\n- เหมาะสำหรับใช้งานในครัวเรือนที่สนามหญ้าต้นไม่ใหญ่มาก\r\n- ความเร็วรอบ 8500 รอบ/นาทีและใช้กำลังไฟฟ้า 450 วัตต์\r\n- แบตเตอรี่ 2000 แอมป์และสามารถใช้งานได้ต่อเนื่อง 2 ชม.', 1860.00, NULL, 20, 'pd_20250902_195029_860e2d58.png', 'active', '2025-08-22 10:48:55', '2025-09-03 09:17:54');
+(19, 1, NULL, 'EUROX เครื่องตัดหญ้าไร้สาย 21 โวลต์ รุ่นพับได้ R', 'รายละเอียดสินค้า\r\n- ใบตัดหญ้าผลิตจากพลาสติก PA66 แข็งแรงและคมกริบ\r\n- บังใบขนาดใหญ่เพิ่มความปลอดภัยและสามารถใส่ล้อได้\r\n- ก้านตัดหญ้าสามารถพับได้ พกพาสะดวก และใช้งานง่าย\r\n- มือจับสามารถเลื่อนปรับระดับได้ตามต้องการ มีน้ำหนักเบา\r\n- เหมาะสำหรับใช้งานในครัวเรือนที่สนามหญ้าต้นไม่ใหญ่มาก\r\n- ความเร็วรอบ 8500 รอบ/นาทีและใช้กำลังไฟฟ้า 450 วัตต์\r\n- แบตเตอรี่ 2000 แอมป์และสามารถใช้งานได้ต่อเนื่อง 2 ชม.', 1860.00, NULL, 20, 'pd_20250902_195029_860e2d58.png', 'active', '2025-08-22 10:48:55', '2025-09-30 20:49:54');
 
 -- --------------------------------------------------------
 
@@ -565,7 +648,25 @@ INSERT INTO `service_status_logs` (`id`, `ticket_id`, `status`, `note`, `created
 (32, 9, 'checking', '', '2025-09-05 18:29:00'),
 (33, 9, 'repairing', '', '2025-09-05 18:29:09'),
 (34, 9, 'done', '', '2025-09-05 18:31:01'),
-(35, 9, 'cancelled', '', '2025-09-05 18:42:22');
+(35, 9, 'cancelled', '', '2025-09-05 18:42:22'),
+(36, 10, 'queue', 'ส่งคำขอซ่อมเข้าคิวแล้ว (ความเร่งด่วน: ด่วน)', '2025-09-30 07:34:29'),
+(37, 10, 'confirm', '', '2025-09-30 07:36:32'),
+(38, 10, 'confirm', '', '2025-09-30 07:37:00'),
+(39, 10, 'checking', '', '2025-09-30 07:37:17'),
+(40, 10, 'checking', '', '2025-09-30 07:37:24'),
+(41, 10, 'waiting_parts', '', '2025-09-30 07:37:32'),
+(42, 10, 'repairing', '', '2025-09-30 07:37:40'),
+(43, 10, 'done', '', '2025-09-30 07:37:47'),
+(44, 10, 'queue', '', '2025-09-30 13:34:27'),
+(45, 10, 'cancelled', '', '2025-09-30 13:34:43'),
+(46, 10, 'queue', '', '2025-09-30 13:47:46'),
+(47, 10, 'confirm', '', '2025-09-30 16:58:45'),
+(48, 10, 'confirm', '', '2025-09-30 17:13:53'),
+(49, 10, 'queue', '', '2025-09-30 17:14:26'),
+(50, 10, 'confirm', '', '2025-09-30 17:20:01'),
+(51, 10, 'done', '', '2025-09-30 17:21:06'),
+(52, 10, 'done', '', '2025-09-30 17:21:39'),
+(53, 10, 'cancelled', '', '2025-09-30 17:28:48');
 
 -- --------------------------------------------------------
 
@@ -606,7 +707,8 @@ CREATE TABLE `service_tickets` (
 --
 
 INSERT INTO `service_tickets` (`id`, `user_id`, `device_type`, `brand`, `model`, `urgency`, `issue`, `line_id`, `phone`, `desired_date`, `scheduled_at`, `schedule_status`, `image_path`, `status`, `created_at`, `updated_at`, `parts_grade`, `parts_grade_surcharge`, `ext_warranty_months`, `ext_warranty_price`, `base_warranty_months`, `estimate_total`, `appointment_start`, `appointment_end`, `appointment_status`) VALUES
-(9, 4, '1', '1', '1', 'normal', '1', '1', '1', '2025-09-06', NULL, 'none', NULL, 'cancelled', '2025-09-05 17:49:14', '2025-09-05 18:43:33', 'used', 0.00, 0, 0.00, 1, 0.00, NULL, NULL, 'none');
+(9, 4, '1', '1', '1', 'normal', '1', '1', '1', '2025-09-06', NULL, 'none', NULL, 'cancelled', '2025-09-05 17:49:14', '2025-09-05 18:43:33', 'used', 0.00, 0, 0.00, 1, 0.00, NULL, NULL, 'none'),
+(10, 4, '1', 'ๅ', 'ๅ', 'urgent', 'ๅ', 'ๅ', 'ๅ', '2025-09-30', NULL, 'none', NULL, 'cancelled', '2025-09-30 07:34:29', '2025-09-30 17:28:48', 'premium', 900.00, 12, 800.00, 1, 1700.00, NULL, NULL, 'none');
 
 -- --------------------------------------------------------
 
@@ -691,8 +793,9 @@ CREATE TABLE `tradein_requests` (
 --
 
 INSERT INTO `tradein_requests` (`id`, `user_id`, `device_type`, `brand`, `model`, `device_condition`, `need`, `image_path`, `status`, `scheduled_at`, `schedule_status`, `offer_price`, `selected_product_id`, `order_id`, `created_at`, `updated_at`) VALUES
-(1, 4, '1', '1', '1', '', 'buy_new', 'assets/img/tradein_1_1756843950_8fe5609e.png', 'cancelled', NULL, 'none', 1000.00, NULL, NULL, '2025-09-02 20:12:30', '2025-09-02 21:56:31'),
-(2, 4, '1', '1', '1', 'working', 'buy_new', 'tradein_2_1756848394_debbc3eb.png', 'cancelled', NULL, 'none', 500.00, 1, NULL, '2025-09-02 21:26:34', '2025-09-02 21:56:21');
+(1, 4, '1', '1', '1', '', 'buy_new', 'assets/img/tradein_1_1756843950_8fe5609e.png', 'cancelled', NULL, 'none', 1000.00, 1, NULL, '2025-09-02 20:12:30', '2025-09-30 19:34:23'),
+(2, 4, '1', '1', '1', 'working', 'buy_new', 'tradein_2_1756848394_debbc3eb.png', 'cancelled', NULL, 'none', 500.00, 1, NULL, '2025-09-02 21:26:34', '2025-09-02 21:56:21'),
+(3, 4, 'ๅ', 'ๅ', 'ๅ', '', 'buy_new', NULL, 'accepted', NULL, 'none', 1000.00, NULL, NULL, '2025-09-30 18:45:20', '2025-09-30 18:46:28');
 
 -- --------------------------------------------------------
 
@@ -719,7 +822,21 @@ INSERT INTO `tradein_status_logs` (`id`, `request_id`, `status`, `note`, `create
 (4, 2, 'accepted', '', '2025-09-02 21:55:27'),
 (5, 2, 'rejected', '', '2025-09-02 21:55:56'),
 (6, 2, 'cancelled', '', '2025-09-02 21:56:21'),
-(7, 1, 'cancelled', '', '2025-09-02 21:56:31');
+(7, 1, 'cancelled', '', '2025-09-02 21:56:31'),
+(8, 1, 'offered', '', '2025-09-30 18:24:14'),
+(9, 1, 'accepted', 'ลูกค้ายอมรับข้อเสนอ', '2025-09-30 18:30:56'),
+(10, 1, 'offered', '', '2025-09-30 18:34:45'),
+(11, 1, 'accepted', 'ลูกค้ายอมรับข้อเสนอ', '2025-09-30 18:36:10'),
+(12, 1, 'completed', '', '2025-09-30 18:39:46'),
+(13, 1, 'completed', '', '2025-09-30 18:39:53'),
+(14, 1, 'completed', '', '2025-09-30 18:44:55'),
+(15, 3, 'cancelled', '', '2025-09-30 18:45:34'),
+(16, 1, 'offered', '', '2025-09-30 18:45:53'),
+(17, 3, 'offered', '', '2025-09-30 18:46:14'),
+(18, 1, 'cancelled', '', '2025-09-30 18:46:24'),
+(19, 3, 'accepted', 'ลูกค้ายอมรับข้อเสนอ', '2025-09-30 18:46:28'),
+(20, 1, 'reviewing', '', '2025-09-30 19:34:13'),
+(21, 1, 'cancelled', '', '2025-09-30 19:34:23');
 
 -- --------------------------------------------------------
 
@@ -790,6 +907,36 @@ ALTER TABLE `categories`
   ADD UNIQUE KEY `uq_categories_slug` (`slug`);
 
 --
+-- Indexes for table `coupons`
+--
+ALTER TABLE `coupons`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `code` (`code`),
+  ADD KEY `idx_coupons_user` (`user_id`),
+  ADD KEY `idx_coupons_tradein` (`tradein_id`);
+
+--
+-- Indexes for table `coupon_categories`
+--
+ALTER TABLE `coupon_categories`
+  ADD PRIMARY KEY (`coupon_id`,`category_id`);
+
+--
+-- Indexes for table `coupon_products`
+--
+ALTER TABLE `coupon_products`
+  ADD PRIMARY KEY (`coupon_id`,`product_id`);
+
+--
+-- Indexes for table `coupon_usages`
+--
+ALTER TABLE `coupon_usages`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `coupon_id` (`coupon_id`),
+  ADD KEY `user_id` (`user_id`),
+  ADD KEY `order_id` (`order_id`);
+
+--
 -- Indexes for table `notifications`
 --
 ALTER TABLE `notifications`
@@ -853,7 +1000,8 @@ ALTER TABLE `schedule_proposals`
 --
 ALTER TABLE `service_status_logs`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_service_log_ticket` (`ticket_id`);
+  ADD KEY `idx_service_log_ticket` (`ticket_id`),
+  ADD KEY `idx_ticket_id_id` (`ticket_id`,`id`);
 
 --
 -- Indexes for table `service_tickets`
@@ -928,22 +1076,34 @@ ALTER TABLE `categories`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
+-- AUTO_INCREMENT for table `coupons`
+--
+ALTER TABLE `coupons`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `coupon_usages`
+--
+ALTER TABLE `coupon_usages`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=171;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=177;
 
 --
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=46;
 
 --
 -- AUTO_INCREMENT for table `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=46;
 
 --
 -- AUTO_INCREMENT for table `products`
@@ -967,19 +1127,19 @@ ALTER TABLE `product_reviews`
 -- AUTO_INCREMENT for table `schedule_proposals`
 --
 ALTER TABLE `schedule_proposals`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `service_status_logs`
 --
 ALTER TABLE `service_status_logs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=54;
 
 --
 -- AUTO_INCREMENT for table `service_tickets`
 --
 ALTER TABLE `service_tickets`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `support_messages`
@@ -997,13 +1157,13 @@ ALTER TABLE `tradein_images`
 -- AUTO_INCREMENT for table `tradein_requests`
 --
 ALTER TABLE `tradein_requests`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `tradein_status_logs`
 --
 ALTER TABLE `tradein_status_logs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
 
 --
 -- AUTO_INCREMENT for table `users`
