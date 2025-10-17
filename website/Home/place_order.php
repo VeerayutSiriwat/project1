@@ -54,9 +54,9 @@ function get_profile_address(mysqli $conn, int $uid): array {
            COALESCE(phone,'') phone,
            COALESCE(address_line1,'') a1,
            COALESCE(address_line2,'') a2,
-           COALESCE(district,'')     dist,
-           COALESCE(province,'')     prov,
-           COALESCE(postcode,'')     pc
+           COALESCE(district,'') dist,
+           COALESCE(province,'') prov,
+           COALESCE(postcode,'') pc
     FROM users WHERE id=? LIMIT 1
   ");
   $st->bind_param("i",$uid);
@@ -121,13 +121,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $phone    = $addr['phone'];
     $address  = $addr['address'];
   } else { // custom
-    $fn   = trim($_POST['fullname']       ?? '');
-    $ph   = trim($_POST['phone']          ?? '');
-    $a1   = trim($_POST['address_line1']  ?? '');
-    $a2   = trim($_POST['address_line2']  ?? '');
-    $dist = trim($_POST['district']       ?? '');
-    $prov = trim($_POST['province']       ?? '');
-    $pc   = trim($_POST['postcode']       ?? '');
+    $fn   = trim($_POST['fullname'] ?? '');
+    $ph   = trim($_POST['phone'] ?? '');
+    $a1   = trim($_POST['address_line1'] ?? '');
+    $a2   = trim($_POST['address_line2'] ?? '');
+    $dist = trim($_POST['district'] ?? '');
+    $prov = trim($_POST['province'] ?? '');
+    $pc   = trim($_POST['postcode'] ?? '');
     $fullname = $fn;
     $phone    = $ph;
     $address  = fmt_addr($a1,$a2,$dist,$prov,$pc);
@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   // 2) คำนวณสินค้า
   $products = $_POST['product_id'] ?? [];
-  $qtys     = $_POST['qty']        ?? [];
+  $qtys     = $_POST['qty'] ?? [];
   $total = 0.0;
   $items = [];
 
@@ -153,175 +153,180 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stp->close();
     if (!$p) continue;
 
+    $orig  = (float)$p['price'];
     $price = ($p['discount_price'] && $p['discount_price'] < $p['price']) ? (float)$p['discount_price'] : (float)$p['price'];
     $qty   = min($qty, (int)$p['stock']);
     if ($qty <= 0) continue;
 
-    $items[] = ['id'=>$pid, 'qty'=>$qty, 'price'=>$price];
-    $total  += $price * $qty;
+    $sum = $price * $qty;
+    $items[] = ['id'=>$pid,'qty'=>$qty,'price'=>$price,'orig_price'=>$orig,'sum'=>$sum];
+    $total += $sum;
   }
 
   if (empty($items)) { die("ไม่มีสินค้าในคำสั่งซื้อ"); }
 
-  // 3) ตรวจความถูกต้องพื้นฐานของที่อยู่
+  // 3) ตรวจความถูกต้องของที่อยู่
   if ($fullname === '' || $phone === '' || $address === '') {
     die("กรุณากรอกข้อมูลผู้รับให้ครบถ้วน (ชื่อ / เบอร์ / ที่อยู่)");
   }
 
-  /* ===== 3.5) ตรวจคูปอง (ถ้ามี) — รองรับสคีมาที่มี/ไม่มี segment และ ends_at/expiry_date ===== */
+  /* ===== 3.5) ตรวจคูปอง (ถ้ามี) ===== */
   $inputCode = trim($_POST['coupon_code'] ?? '');
   $discount  = 0.0;
-  $couponRow = null;
   $coupon_id = null;
 
   if ($inputCode !== '') {
-    // columns (normalize ends_at)
-    $cols = [
-      "c.id","c.code","c.user_id","c.type","c.value","c.status",
-      (has_col($conn,'coupons','starts_at') ? "c.starts_at" : "NULL AS starts_at"),
-      (has_col($conn,'coupons','ends_at')
-        ? "c.ends_at AS ends_at"
-        : (has_col($conn,'coupons','expiry_date') ? "c.expiry_date AS ends_at" : "NULL AS ends_at")),
-      (has_col($conn,'coupons','min_order_total') ? "COALESCE(c.min_order_total,0) AS min_order_total" : "0 AS min_order_total"),
-      (has_col($conn,'coupons','per_user_limit') ? "COALESCE(c.per_user_limit,0) AS per_user_limit" : "0 AS per_user_limit"),
-      (has_col($conn,'coupons','uses_limit')     ? "COALESCE(c.uses_limit,0)     AS uses_limit"     : "0 AS uses_limit")
-    ];
-
-    // public clause: segment='all' (ถ้ามี) มิฉะนั้น user_id IS NULL
-    $hasSegment   = has_col($conn,'coupons','segment');
-    $publicClause = $hasSegment ? "c.segment='all'" : "c.user_id IS NULL";
-
-    // ช่วงเวลาใช้งาน
-    $startOK = has_col($conn,'coupons','starts_at') ? "(c.starts_at IS NULL OR c.starts_at<=NOW())" : "1=1";
-    $endOK   = has_col($conn,'coupons','ends_at')
-                ? "(c.ends_at   IS NULL OR c.ends_at>=NOW())"
-                : (has_col($conn,'coupons','expiry_date') ? "(c.expiry_date IS NULL OR c.expiry_date>=NOW())" : "1=1");
-
-    $sql = "SELECT ".implode(',', $cols)."
-            FROM coupons c
-            WHERE c.code=? AND (c.user_id=? OR {$publicClause})
-              AND c.status='active' AND {$startOK} AND {$endOK}
-            LIMIT 1";
+    $sql = "SELECT * FROM coupons WHERE code=? AND status='active' LIMIT 1";
     $stc = $conn->prepare($sql);
-    $stc->bind_param("si", $inputCode, $user_id);
+    $stc->bind_param("s", $inputCode);
     $stc->execute();
     $c = $stc->get_result()->fetch_assoc();
     $stc->close();
 
-    $ok = false; $reason = '';
     if ($c) {
-      // นับจำนวนใช้ (ถ้ามีตาราง)
-      $totalUsed = 0; $userUsed = 0;
+      // นับจำนวนการใช้คูปอง
+      $totalUsed = 0;
+      $userUsed  = 0;
       if (table_exists($conn,'coupon_usages')) {
-        $q  = $conn->prepare("SELECT COUNT(*) c FROM coupon_usages WHERE coupon_id=?");
-        $q->bind_param("i", $c['id']); $q->execute();
-        $totalUsed = (int)($q->get_result()->fetch_assoc()['c'] ?? 0);
-        $q->close();
+        $q1 = $conn->prepare("SELECT COUNT(*) c FROM coupon_usages WHERE coupon_id=?");
+        $q1->bind_param("i", $c['id']); $q1->execute();
+        $totalUsed = (int)($q1->get_result()->fetch_assoc()['c'] ?? 0);
+        $q1->close();
+
         $q2 = $conn->prepare("SELECT COUNT(*) c FROM coupon_usages WHERE coupon_id=? AND user_id=?");
         $q2->bind_param("ii", $c['id'], $user_id); $q2->execute();
         $userUsed = (int)($q2->get_result()->fetch_assoc()['c'] ?? 0);
         $q2->close();
       }
 
+      // ตรวจสิทธิ์
       if ((int)$c['uses_limit']>0 && $totalUsed >= (int)$c['uses_limit']) {
-        $reason = 'คูปองถูกใช้งานครบจำนวนแล้ว';
+        $reason = 'คูปองนี้ถูกใช้งานครบแล้ว';
       } elseif ((int)$c['per_user_limit']>0 && $userUsed >= (int)$c['per_user_limit']) {
-        $reason = 'คุณใช้คูปองนี้ครบจำนวนที่กำหนดแล้ว';
-      } elseif ((float)$c['min_order_total']>0 && $total < (float)$c['min_order_total']) {
-        $reason = 'ยอดสั่งซื้อไม่ถึงขั้นต่ำของคูปอง';
+        $reason = 'คุณใช้คูปองนี้ครบจำนวนแล้ว';
       } else {
         // คำนวณส่วนลด
-        $disc = 0.0;
-        if (strtolower($c['type']) === 'percent') {
-          $rate = max(0.0, min(100.0, (float)$c['value']))/100.0;
-          $disc = $total * $rate;
-        } else { // fixed
-          $disc = (float)$c['value'];
+        $base = 0.0;
+        foreach ($items as $it) {
+          $base += (float)$it['sum'];
         }
-        $disc = max(0.0, min($disc, $total));
-        if ($disc > 0) {
-          $ok = true;
-          $discount  = $disc;
-          $couponRow = $c;
+        if ($base > 0) {
+          $type = strtolower($c['type']);
+          $val  = (float)$c['value'];
+          if ($type === 'percent') {
+            $discount = $base * ($val / 100);
+            if (!empty($c['max_discount']) && $c['max_discount'] > 0) {
+              $discount = min($discount, (float)$c['max_discount']);
+            }
+          } else {
+            $discount = min($val, $base);
+          }
           $coupon_id = (int)$c['id'];
-        } else {
-          $reason = 'ส่วนลดเท่ากับ 0';
         }
       }
-    } else {
-      $reason = 'ไม่พบคูปองนี้';
     }
-
-    $_SESSION['coupon_preview'] = [
-      'code'=>$inputCode, 'ok'=>$ok, 'reason'=>$reason, 'discount'=>$discount
-    ];
   }
 
+  $conn->begin_transaction();
+
+try {
+  // ✅ ใช้ตัวแปร $inputCode ที่ประกาศไว้ตอนต้น (ไม่ใช่ $coupon_code)
+  $lock = $conn->prepare("SELECT id, uses_limit, per_user_limit FROM coupons WHERE code=? FOR UPDATE");
+  $lock->bind_param('s', $inputCode);
+  $lock->execute();
+  $coupon = $lock->get_result()->fetch_assoc();
+  $lock->close();
+
+  if (!$coupon) {
+    throw new Exception('คูปองไม่ถูกต้องหรือไม่พบในระบบ');
+  }
+
+  // ✅ ตรวจจำนวนการใช้ (ออเดอร์ที่ยังไม่ถูกยกเลิก/คืนเงิน)
+  $q = $conn->prepare("
+    SELECT 
+      COALESCE(SUM(t.anyone),0) AS used_total,
+      COALESCE(SUM(t.mine),0)   AS used_by_me
+    FROM (
+      SELECT 
+        1 AS anyone,
+        CASE WHEN cu.user_id=? THEN 1 ELSE 0 END AS mine
+      FROM coupon_usages cu
+      INNER JOIN orders o ON o.id = cu.order_id
+      WHERE cu.coupon_id = ?
+        AND cu.context = 'order'
+        AND o.payment_status IN ('unpaid','pending','paid')
+        AND (o.cancel_reason IS NULL OR o.cancel_reason = '')
+      GROUP BY cu.order_id
+    ) t
+  ");
+  $q->bind_param('ii', $user_id, $coupon['id']);
+  $q->execute();
+  $row = $q->get_result()->fetch_assoc() ?: ['used_total'=>0,'used_by_me'=>0];
+  $q->close();
+
+  if (($coupon['uses_limit'] ?? 0) > 0 && $row['used_total'] >= $coupon['uses_limit']) {
+    throw new Exception('คูปองนี้มีผู้ใช้ครบแล้ว');
+  }
+  if (($coupon['per_user_limit'] ?? 0) > 0 && $row['used_by_me'] >= $coupon['per_user_limit']) {
+    throw new Exception('คุณใช้คูปองนี้ครบจำนวนแล้ว');
+  }
+
+  // ✅ (สร้างคำสั่งซื้อ INSERT orders ... ที่นี่ตามโค้ดคุณ)
+  // เช่น:
+  // $order_id = ...;  // หลังจาก INSERT สำเร็จแล้ว
+
+  // ✅ บันทึกการใช้คูปอง (อย่าลืมเปลี่ยน $discount_amount ให้ใช้ตัวแปรส่วนลดจริง)
+  $discount_amount = $discount ?? 0.0;
+  if ($coupon['id'] && isset($order_id)) {
+    $ins = $conn->prepare("
+      INSERT INTO coupon_usages (coupon_id, user_id, order_id, context, amount, created_at, used_at)
+      VALUES (?, ?, ?, 'order', ?, NOW(), NOW())
+    ");
+    $ins->bind_param('iiid', $coupon['id'], $user_id, $order_id, $discount_amount);
+    $ins->execute();
+    $ins->close();
+  }
+
+  $conn->commit();
+
+} catch (Exception $e) {
+  $conn->rollback();
+  // ❗ เปลี่ยนจาก die() เป็น redirect กลับหน้า checkout พร้อมข้อความแจ้งเตือนสวยๆ
+  $msg = urlencode($e->getMessage());
+  $code = urlencode($inputCode);
+  header("Location: checkout.php?apply_error={$msg}&apply_code={$code}");
+  exit;
+}
   $final_total = max(0.0, $total - $discount);
 
-  // 4) ทำธุรกรรม
+  /* ========== 4) ทำธุรกรรมสั่งซื้อ ========== */
   $conn->begin_transaction();
   try {
     $status     = 'pending';
     $pay_status = 'unpaid';
 
-    // ตรวจว่ามีคอลัมน์เสริมใน orders ไหม
     $ord_has_discount = has_col($conn,'orders','discount_total');
     $ord_has_coupon   = has_col($conn,'orders','coupon_code');
 
+    // เพิ่มออเดอร์
+    $sql = "INSERT INTO orders
+            (user_id,total_price".($ord_has_discount?",discount_total":"").($ord_has_coupon?",coupon_code":"").",status,payment_status,shipping_name,shipping_phone,shipping_address,
+             payment_method,stock_deducted,created_at,updated_at,expires_at)
+            VALUES (?,?,".($ord_has_discount?"?,":"").($ord_has_coupon?"?,":"")."?,?,?,?,?,?,0,NOW(),NOW(),".($method==='bank'?"DATE_ADD(NOW(), INTERVAL ? MINUTE)":"NULL").")";
     if ($method === 'bank') {
-      $sql = "INSERT INTO orders
-              (user_id,total_price".($ord_has_discount?",discount_total":"").($ord_has_coupon?",coupon_code":"").",status,payment_status,shipping_name,shipping_phone,shipping_address,
-               payment_method,stock_deducted,created_at,updated_at,expires_at)
-              VALUES (?,?,".($ord_has_discount?"?,":"").($ord_has_coupon?"?,":"")."?,?,?,?,?,?,0,NOW(),NOW(), DATE_ADD(NOW(), INTERVAL ? MINUTE))";
-      if ($ord_has_discount && $ord_has_coupon) {
-        $st = $conn->prepare($sql);
-        $st->bind_param("iddsssssssi",
-          $user_id,$final_total,$discount,$inputCode,$status,$pay_status,$fullname,$phone,$address,$method,$minutes_window
-        );
-      } elseif ($ord_has_discount) {
-        $st = $conn->prepare($sql);
-        $st->bind_param("iddssssssi",
-          $user_id,$final_total,$discount,$status,$pay_status,$fullname,$phone,$address,$method,$minutes_window
-        );
-      } elseif ($ord_has_coupon) {
-        $st = $conn->prepare($sql);
-        $st->bind_param("idsssssssi",
-          $user_id,$final_total,$inputCode,$status,$pay_status,$fullname,$phone,$address,$method,$minutes_window
-        );
-      } else {
-        $st = $conn->prepare($sql);
-        $st->bind_param("idssssssi",
-          $user_id,$final_total,$status,$pay_status,$fullname,$phone,$address,$method,$minutes_window
-        );
-      }
-    } else { // COD
-      $sql = "INSERT INTO orders
-              (user_id,total_price".($ord_has_discount?",discount_total":"").($ord_has_coupon?",coupon_code":"").",status,payment_status,shipping_name,shipping_phone,shipping_address,
-               payment_method,stock_deducted,created_at,updated_at,expires_at)
-              VALUES (?,?,".($ord_has_discount?"?,":"").($ord_has_coupon?"?,":"")."?,?,?,?,?,?,0,NOW(),NOW(), NULL)";
-      if ($ord_has_discount && $ord_has_coupon) {
-        $st = $conn->prepare($sql);
-        $st->bind_param("iddsssssss",
-          $user_id,$final_total,$discount,$inputCode,$status,$pay_status,$fullname,$phone,$address,$method
-        );
-      } elseif ($ord_has_discount) {
-        $st = $conn->prepare($sql);
-        $st->bind_param("iddssssss",
-          $user_id,$final_total,$discount,$status,$pay_status,$fullname,$phone,$address,$method
-        );
-      } elseif ($ord_has_coupon) {
-        $st = $conn->prepare($sql);
-        $st->bind_param("idsssssss",
-          $user_id,$final_total,$inputCode,$status,$pay_status,$fullname,$phone,$address,$method
-        );
-      } else {
-        $st = $conn->prepare($sql);
-        $st->bind_param("idssssss",
-          $user_id,$final_total,$status,$pay_status,$fullname,$phone,$address,$method
-        );
-      }
+      if ($ord_has_discount && $ord_has_coupon)
+        $st = $conn->prepare($sql) && $st->bind_param("iddsssssssi",$user_id,$final_total,$discount,$inputCode,$status,$pay_status,$fullname,$phone,$address,$method,$minutes_window);
     }
+
+    $st = $conn->prepare($sql);
+    if ($ord_has_discount && $ord_has_coupon)
+      $st->bind_param("iddsssssss", $user_id,$final_total,$discount,$inputCode,$status,$pay_status,$fullname,$phone,$address,$method);
+    elseif ($ord_has_discount)
+      $st->bind_param("iddssssss", $user_id,$final_total,$discount,$status,$pay_status,$fullname,$phone,$address,$method);
+    elseif ($ord_has_coupon)
+      $st->bind_param("idsssssss", $user_id,$final_total,$inputCode,$status,$pay_status,$fullname,$phone,$address,$method);
+    else
+      $st->bind_param("idssssss", $user_id,$final_total,$status,$pay_status,$fullname,$phone,$address,$method);
     $st->execute();
     $order_id = (int)$st->insert_id;
     $st->close();
@@ -334,32 +339,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $sti->close();
 
-    // ตัดสต็อกทันทีสำหรับ COD
+    // ตัดสต็อกสำหรับ COD
     if ($method === 'cod') {
       $up = $conn->prepare("UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id=?");
       foreach ($items as $it) {
-        $q = (int)$it['qty']; $pid = (int)$it['id'];
-        $up->bind_param("ii", $q, $pid);
+        $up->bind_param("ii", $it['qty'], $it['id']);
         $up->execute();
       }
       $up->close();
       $conn->query("UPDATE orders SET stock_deducted=1 WHERE id={$order_id}");
     }
 
-    // บันทึกการใช้คูปอง (ถ้า valid และมีตาราง)
+    // บันทึกคูปอง
     if ($coupon_id && table_exists($conn,'coupon_usages')) {
-      $ins = $conn->prepare("INSERT INTO coupon_usages (coupon_id, user_id, order_id, used_at) VALUES (?,?,?,NOW())");
-      $ins->bind_param("iii", $coupon_id, $user_id, $order_id);
-      $ins->execute(); $ins->close();
-
-      if (has_col($conn,'coupons','used_count')) {
-        $conn->query("UPDATE coupons SET used_count = used_count + 1 WHERE id=".(int)$coupon_id);
-      }
+      $ins = $conn->prepare("INSERT INTO coupon_usages (coupon_id,user_id,order_id,context,amount,used_at) VALUES (?,?,?,?,?,NOW())");
+      $ctx = 'order';
+      $ins->bind_param("iiiss", $coupon_id,$user_id,$order_id,$ctx,$discount);
+      $ins->execute();
+      $ins->close();
     }
 
     $conn->commit();
 
-    /* ===== แจ้งเตือนหลัง commit ===== */
+    // แจ้งเตือน
     $username = '';
     if ($stU = $conn->prepare("SELECT username FROM users WHERE id=? LIMIT 1")) {
       $stU->bind_param("i", $user_id);
@@ -370,55 +372,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $displayUser = $username !== '' ? $username : "UID {$user_id}";
 
     if ($method === 'cod') {
-      notify_admins(
-        $conn,
-        'new_order_cod',
-        $order_id,
-        "ออเดอร์ใหม่ (ปลายทาง)",
-        "คำสั่งซื้อ #{$order_id} จาก {$displayUser}".($discount>0? " • ใช้คูปองลด ".number_format($discount,2)." บาท":"")
-      );
-      notify_user(
-        $conn,
-        $user_id,
-        'order_status',
-        $order_id,
-        "สั่งซื้อสำเร็จ",
-        "คำสั่งซื้อ #{$order_id} ชำระแบบเก็บเงินปลายทาง".($discount>0? " • ได้รับส่วนลดคูปอง ".number_format($discount,2)." บาท":"")
-      );
-    } else { // bank
-      $expires_at = '';
-      if ($stE = $conn->prepare("SELECT expires_at FROM orders WHERE id=? LIMIT 1")) {
-        $stE->bind_param("i", $order_id);
-        $stE->execute();
-        $expires_at = (string)($stE->get_result()->fetch_assoc()['expires_at'] ?? '');
-        $stE->close();
-      }
-      $deadlineTxt = $expires_at ? " ภายใน ".date('d/m/Y H:i', strtotime($expires_at)) : '';
-
-      notify_admins(
-        $conn,
-        'new_order_bank',
-        $order_id,
-        "ออเดอร์ใหม่ (โอนธนาคาร)",
-        "คำสั่งซื้อ #{$order_id} จาก {$displayUser} • รอชำระเงิน{$deadlineTxt}".($discount>0? " • คูปองลด ".number_format($discount,2)." บาท":"")
-      );
-      notify_user(
-        $conn,
-        $user_id,
-        'payment_status',
-        $order_id,
-        "สั่งซื้อสำเร็จ - กรุณาโอนเงิน",
-        "คำสั่งซื้อ #{$order_id}{$deadlineTxt} และอัปโหลดสลิปในหน้า ‘คำสั่งซื้อของฉัน’".($discount>0? " • ใช้คูปองลด ".number_format($discount,2)." บาท":"")
-      );
+      notify_admins($conn,'new_order_cod',$order_id,"ออเดอร์ใหม่ (ปลายทาง)","คำสั่งซื้อ #{$order_id} จาก {$displayUser}".($discount>0?" • คูปองลด ".number_format($discount,2)." บาท":""));
+      notify_user($conn,$user_id,'order_status',$order_id,"สั่งซื้อสำเร็จ","คำสั่งซื้อ #{$order_id} เก็บเงินปลายทาง".($discount>0?" • ส่วนลดคูปอง ".number_format($discount,2)." บาท":""));
+    } else {
+      notify_admins($conn,'new_order_bank',$order_id,"ออเดอร์ใหม่ (โอนธนาคาร)","คำสั่งซื้อ #{$order_id} จาก {$displayUser} • รอชำระเงิน".($discount>0?" • คูปองลด ".number_format($discount,2)." บาท":""));
+      notify_user($conn,$user_id,'payment_status',$order_id,"สั่งซื้อสำเร็จ - กรุณาโอนเงิน","คำสั่งซื้อ #{$order_id} กรุณาโอนเงินและอัปโหลดสลิป".($discount>0?" • ใช้คูปองลด ".number_format($discount,2)." บาท":""));
     }
-    /* ===== จบแจ้งเตือน ===== */
 
     // เปลี่ยนหน้า
-    if ($method === 'cod') {
-      header("Location: order_success.php?id=".$order_id);
-    } else {
-      header("Location: upload_slip.php?id=".$order_id);
-    }
+    header("Location: ".($method==='cod'?"order_success.php?id=":"upload_slip.php?id=").$order_id);
     exit;
 
   } catch (Throwable $e) {
@@ -427,3 +389,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
   }
 }
+?> 

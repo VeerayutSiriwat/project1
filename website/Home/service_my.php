@@ -110,23 +110,23 @@ if ($st = $conn->prepare("
 
 /* mapping สถานะ */
 $repairStatusMap = [
-  'queue'=>'เข้าคิว','confirm'=>'ยืนยันคิว','checking'=>'ตรวจเช็ค',
+  'queued'=>'เข้าคิว','confirm'=>'ยืนยันคิว','checking'=>'ตรวจเช็ค',
   'waiting_parts'=>'รออะไหล่','repairing'=>'กำลังซ่อม',
   'done'=>'เสร็จพร้อมรับ','cancelled'=>'ยกเลิก',
 ];
 $repairStatusClass = [
-  'queue'=>'secondary','confirm'=>'primary','checking'=>'info',
+  'queued'=>'secondary','confirm'=>'primary','checking'=>'info',
   'waiting_parts'=>'warning text-dark','repairing'=>'primary',
   'done'=>'success','cancelled'=>'danger',
 ];
 
 $tradeStatusMap = [
-  'submitted'=>'ส่งคำขอแล้ว','reviewing'=>'กำลังประเมิน','offered'=>'มีราคาเสนอ',
+  'submitted'=>'ส่งคำขอแล้ว','review'=>'กำลังประเมิน','offered'=>'มีราคาเสนอ',
   'accepted'=>'ผู้ใช้ยอมรับข้อเสนอ','rejected'=>'ปฏิเสธข้อเสนอ',
   'cancelled'=>'ยกเลิก','completed'=>'เสร็จสิ้น',
 ];
 $tradeStatusClass = [
-  'submitted'=>'secondary','reviewing'=>'info','offered'=>'primary',
+  'submitted'=>'secondary','review'=>'info','offered'=>'primary',
   'accepted'=>'success','rejected'=>'danger','cancelled'=>'danger','completed'=>'success',
 ];
 ?>

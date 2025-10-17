@@ -9,6 +9,20 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role']??'')!=='admin') {
 
 function h($s){ return htmlspecialchars($s??'',ENT_QUOTES,'UTF-8'); }
 function baht($n){ return number_format((float)$n,2); }
+/* ===== helpers สำหรับเช็ค schema ===== */
+function has_col(mysqli $conn, string $table, string $col): bool {
+  $table = preg_replace('/[^a-zA-Z0-9_]/','',$table);
+  $col   = preg_replace('/[^a-zA-Z0-9_]/','',$col);
+  $q = $conn->query("SHOW COLUMNS FROM `$table` LIKE '$col'");
+  return $q && $q->num_rows > 0;
+}
+function table_exists(mysqli $conn, string $table): bool {
+  $t = $conn->real_escape_string($table);
+  $q = $conn->query("SHOW TABLES LIKE '$t'");
+  return $q && $q->num_rows > 0;
+}
+
+
 
 /* ===== Admin name (เหมือน dashboard) ===== */
 $admin_id = (int)$_SESSION['user_id'];
@@ -20,13 +34,38 @@ if ($st = $conn->prepare("SELECT username FROM users WHERE id=? LIMIT 1")){
   $st->close();
 }
 
-/* ===== โหลดรายการคูปอง =====
-   columns ที่ใช้งาน: id, code, type (percent|fixed), value, starts_at, ends_at,
-   status (active|inactive), used_count, uses_limit
-*/
+/* ===== โหลดรายการคูปอง (ทนสคีมา) ===== */
 $rows = [];
-$res = $conn->query("SELECT * FROM coupons ORDER BY id DESC");
-if ($res) $rows = $res->fetch_all(MYSQLI_ASSOC);
+$hasUsages = table_exists($conn, 'coupon_usages');
+$hasUsedCountCol = has_col($conn, 'coupons', 'used_count');
+$usedFallback = $hasUsedCountCol ? "COALESCE(c.used_count,0)" : "0";
+
+if ($hasUsages) {
+  $sql = "
+    SELECT 
+      c.*,
+      COALESCE(u.used_total, $usedFallback) AS used_total
+    FROM coupons c
+    LEFT JOIN (
+      SELECT coupon_id, COUNT(*) AS used_total
+      FROM coupon_usages
+      GROUP BY coupon_id
+    ) u ON u.coupon_id = c.id
+    ORDER BY c.id DESC
+  ";
+} else {
+  // ไม่มี coupon_usages → ใช้คอลัมน์ใน coupons ถ้ามี ไม่มีก็เป็น 0
+  $sql = "
+    SELECT 
+      c.*,
+      $usedFallback AS used_total
+    FROM coupons c
+    ORDER BY c.id DESC
+  ";
+}
+if ($res = $conn->query($sql)) {
+  $rows = $res->fetch_all(MYSQLI_ASSOC);
+}
 
 /* ===== KPI สรุป ===== */
 $total = count($rows);
@@ -147,13 +186,14 @@ function coupon_value_str($c){
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="p-2">
-      <a class="side-a" href="dashboard.php"><i class="bi bi-speedometer2 me-2"></i> Dashboard</a>
-      <a class="side-a" href="orders.php"><i class="bi bi-receipt me-2"></i> Orders</a>
-      <a class="side-a" href="products.php"><i class="bi bi-box-seam me-2"></i> Products</a>
-      <a class="side-a" href="tradein_requests.php"><i class="bi bi-arrow-left-right me-2"></i> Trade-in</a>
-      <a class="side-a" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> Service</a>
-      <a class="side-a" href="users.php"><i class="bi bi-people me-2"></i> Users</a>
-      <a class="side-a active" href="coupons_list.php"><i class="bi bi-ticket-detailed me-2"></i> Coupons</a>
+      <a class="side-a" href="dashboard.php"><i class="bi bi-speedometer2 me-2"></i> แดชบอร์ด</a>
+      <a class="side-a" href="sales_summary.php"><i class="bi bi-graph-up-arrow me-2"></i> สรุปยอดขาย</a>
+      <a class="side-a" href="orders.php"><i class="bi bi-receipt me-2"></i> ออเดอร์</a>
+      <a class="side-a" href="products.php"><i class="bi bi-box-seam me-2"></i> สินค้า</a>
+      <a class="side-a" href="tradein_requests.php"><i class="bi bi-arrow-left-right me-2"></i> เทิร์นสินค้า</a>
+      <a class="side-a" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> งานซ่อม</a>
+      <a class="side-a" href="users.php"><i class="bi bi-people me-2"></i> ผู้ใช้</a>
+      <a class="side-a active" href="coupons_list.php"><i class="bi bi-ticket-detailed me-2"></i> คูปอง</a>
       <a class="side-a" href="support.php"><i class="bi bi-chat-dots me-2"></i> กล่องข้อความ</a>
     </div>
   </aside>
@@ -287,7 +327,17 @@ function coupon_value_str($c){
               <td><?= h($c['type'] ?? '-') ?></td>
               <td><?= coupon_value_str($c) ?></td>
               <td><?= $rangeTxt ?></td>
-              <td><?= (int)($c['used_count']??0) ?> / <?= (int)($c['uses_limit']??0) ?></td>
+              <?php
+                $used  = (int)($c['used_total'] ?? 0);    // มาจาก coupon_usages หรือ used_count
+                $limit = (int)($c['uses_limit'] ?? 0);    // 0 = ไม่จำกัด
+              ?>
+              <td>
+                <?= $used ?> / <?= $limit>0 ? $limit : 'ไม่จำกัด' ?>
+                <?php if ($limit>0): ?>
+                  <div class="small text-muted">เหลืออีก <?= max(0, $limit - $used) ?> ครั้ง</div>
+                <?php endif; ?>
+              </td>
+
               <td><?= coupon_status_badge($c) ?></td>
               <td class="text-end">
                 <a href="coupon_form.php?id=<?= (int)$c['id'] ?>" class="btn btn-sm btn-outline-warning"><i class="bi bi-pencil-square"></i> แก้ไข</a>

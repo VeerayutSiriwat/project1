@@ -7,11 +7,20 @@ if (!isset($_SESSION['user_id'])) {
   header("Location: login.php?redirect=my_orders.php"); exit;
 }
 
-// รับสถานะจาก query (?status=...) และ normalize
+/* ---------- helpers ---------- */
+function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
+function baht($n){ return number_format((float)$n, 2); }
+function has_col(mysqli $c, string $t, string $col): bool {
+  $t = preg_replace('/[^a-zA-Z0-9_]/','',$t);
+  $col = preg_replace('/[^a-zA-Z0-9_]/','',$col);
+  $q = $c->query("SHOW COLUMNS FROM `$t` LIKE '$col'");
+  return $q && $q->num_rows>0;
+}
+
+/* ---------- รับพารามิเตอร์ ---------- */
 $allowed_status = ['all','new','processing','shipped','delivered','completed','cancelled','cancel_requested'];
 $statusParam = strtolower(trim($_GET['status'] ?? 'all'));
 if (!in_array($statusParam, $allowed_status, true)) $statusParam = 'all';
-
 
 $user_id = (int)$_SESSION['user_id'];
 
@@ -19,20 +28,17 @@ $user_id = (int)$_SESSION['user_id'];
 date_default_timezone_set('Asia/Bangkok');
 $conn->query("SET time_zone = '+07:00'");
 
-// helpers
-function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
-function baht($n){ return number_format((float)$n, 2); }
-
 // paging
 $per_page = 10;
-$page = max(1, (int)($_GET['page'] ?? 1));
+$page   = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $per_page;
+$prev   = max(1, $page - 1);
+$next   = $page + 1;
 
 // payment window (match upload_slip.php)
 $minutes_window = 15;
 
-// count total orders
-// ===== นับรวมสำหรับเพจจิเนชัน (ตามสถานะที่เลือก) =====
+/* ---------- นับจำนวนรายการสำหรับเพจจิเนชัน ---------- */
 if ($statusParam === 'all') {
   $stCount = $conn->prepare("SELECT COUNT(*) AS total FROM orders WHERE user_id=?");
   $stCount->bind_param("i", $user_id);
@@ -44,18 +50,26 @@ $stCount->execute();
 $total_orders = (int)($stCount->get_result()->fetch_assoc()['total'] ?? 0);
 $stCount->close();
 $total_pages = max(1, (int)ceil($total_orders / $per_page));
+$next = min($total_pages, $next);
 
+/* ---------- ดึงรายการคำสั่งซื้อ (หน้า current) ---------- */
+/* เราจะดึง 3 ค่า:
+   - total_amount    = ผลรวมก่อนลด  (SUM(order_items))
+   - discount_total  = ส่วนลด (ถ้ามีคอลัมน์; ถ้าไม่มีให้เป็น 0)
+   - payable_total   = ยอดที่ต้องจ่ายหลังลด  (ถ้ามี orders.total_price ใช้ค่านั้น, ไม่งั้นคำนวณ = total_amount - discount_total)
+*/
+$hasTotalCol = has_col($conn,'orders','total_price');
+$hasDiscCol  = has_col($conn,'orders','discount_total');
 
-/* fetch orders (current page)
-   - total_amount from order_items
-   - expires_at (fallback created_at + window)
-   - remaining_sec (for countdown) */
-/* ===== ดึงรายการตามหน้าปัจจุบัน + กรองตามสถานะ (ถ้ามี) ===== */
 $limit = (int)$per_page;
 $ofs   = (int)$offset;
 
-if ($statusParam === 'all') {
-  $sql = "
+$selectDiscount = $hasDiscCol ? "COALESCE(o.discount_total,0)" : "0";
+$selectPayable  = $hasTotalCol 
+  ? "COALESCE(o.total_price, 0)"
+  : "(COALESCE(SUM(oi.quantity * oi.unit_price),0) - {$selectDiscount})";
+
+$baseSelect = "
     SELECT
       o.id,
       o.status               AS order_status,
@@ -64,11 +78,17 @@ if ($statusParam === 'all') {
       o.payment_status,
       o.created_at,
       o.slip_image,
-      COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS total_amount,
+      COALESCE(SUM(oi.quantity * oi.unit_price), 0)            AS total_amount,
+      {$selectDiscount}                                        AS discount_total,
+      {$selectPayable}                                         AS payable_total,
       COALESCE(o.expires_at, DATE_ADD(o.created_at, INTERVAL ? MINUTE)) AS expires_at,
       GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), COALESCE(o.expires_at, DATE_ADD(o.created_at, INTERVAL ? MINUTE)))) AS remaining_sec
     FROM orders o
     LEFT JOIN order_items oi ON oi.order_id = o.id
+";
+
+if ($statusParam === 'all') {
+  $sql = $baseSelect."
     WHERE o.user_id = ?
     GROUP BY o.id, o.status, o.cancel_reason, o.payment_method, o.payment_status, o.created_at, o.slip_image, o.expires_at
     ORDER BY o.created_at DESC
@@ -77,35 +97,20 @@ if ($statusParam === 'all') {
   $st = $conn->prepare($sql);
   $st->bind_param("iiiii", $minutes_window, $minutes_window, $user_id, $limit, $ofs);
 } else {
-  $sql = "
-    SELECT
-      o.id,
-      o.status               AS order_status,
-      o.cancel_reason,
-      o.payment_method,
-      o.payment_status,
-      o.created_at,
-      o.slip_image,
-      COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS total_amount,
-      COALESCE(o.expires_at, DATE_ADD(o.created_at, INTERVAL ? MINUTE)) AS expires_at,
-      GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), COALESCE(o.expires_at, DATE_ADD(o.created_at, INTERVAL ? MINUTE)))) AS remaining_sec
-    FROM orders o
-    LEFT JOIN order_items oi ON oi.order_id = o.id
+  $sql = $baseSelect."
     WHERE o.user_id = ? AND LOWER(o.status) = ?
     GROUP BY o.id, o.status, o.cancel_reason, o.payment_method, o.payment_status, o.created_at, o.slip_image, o.expires_at
     ORDER BY o.created_at DESC
     LIMIT ? OFFSET ?
   ";
   $st = $conn->prepare($sql);
-  // iiisii = int,int,int,string,int,int
   $st->bind_param("iiisii", $minutes_window, $minutes_window, $user_id, $statusParam, $limit, $ofs);
 }
 $st->execute();
 $orders = $st->get_result()->fetch_all(MYSQLI_ASSOC);
 $st->close();
 
-
-// ===== Tab counters from ALL orders (ทุกหน้า) =====
+/* ---------- ตัวเลขสรุป tab ทั้งหมด ---------- */
 $statusKeys = ['new','processing','shipped','delivered','completed','cancelled','cancel_requested'];
 $cnt = array_fill_keys(array_merge(['all'], $statusKeys), 0);
 
@@ -127,7 +132,6 @@ while($row = $rAgg->fetch_assoc()){
 }
 $stAgg->close();
 
-
 ?>
 <!doctype html>
 <html lang="th">
@@ -143,11 +147,7 @@ $stAgg->close();
       --pri:#2563eb; --pri2:#4f46e5; --good:#16a34a; --warn:#f59e0b; --bad:#ef4444;
     }
     body{background:linear-gradient(180deg,#f8fbff,#f6f8fb 50%,#f5f7fa);}
-    .page-head{
-      border-radius:20px; color:#fff; padding:18px 18px 12px;
-      background:linear-gradient(135deg,var(--pri) 0%, var(--pri2) 55%, #0ea5e9 100%);
-      box-shadow:0 8px 24px rgba(37,99,235,.15);
-    }
+    .page-head{border-radius:20px;color:#fff;padding:18px 18px 12px;background:linear-gradient(135deg,var(--pri) 0%, var(--pri2) 55%, #0ea5e9 100%);box-shadow:0 8px 24px rgba(37,99,235,.15);}
     .chips{display:flex;gap:.5rem;flex-wrap:wrap}
     .chip{border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.15);color:#fff;border-radius:999px;padding:.25rem .6rem;font-weight:700}
     .tabs{ margin-top:12px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:6px; display:flex; gap:6px; flex-wrap:wrap; }
@@ -166,12 +166,10 @@ $stAgg->close();
     .timer-badge i{font-size:1rem}
     .actions .btn{border-radius:10px}
     .sticky-pagination{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(246,248,251,0),#f6f8fb 40%, #f6f8fb);padding-top:.4rem}
-
     .badge.rounded-pill{ font-weight:800; }
     .bg-primary-subtle{ background:#e7f0ff!important; }
     .bg-success-subtle{ background:#e8fdf3!important; }
 
-    /* mobile-friendly cards */
     @media (max-width: 992px){
       .table-modern thead{display:none}
       .table-modern tbody tr{display:block;margin:12px; border:1px solid #e9eef3;border-radius:14px;padding:.75rem;background:#fff}
@@ -194,20 +192,14 @@ $stAgg->close();
       </div>
     </div>
 
-    <!-- filter tabs (client-side) -->
-
-      <div class="tabs" role="tablist" aria-label="Filters">
-  <div class="tabs" role="tablist" aria-label="Filters">
-  <a class="tab-btn <?= $statusParam==='all'?'active':'' ?>" href="?status=all">ทั้งหมด (<?= (int)$cnt['all'] ?>)</a>
-  <a class="tab-btn <?= $statusParam==='new'?'active':'' ?>" href="?status=new">ใหม่ (<?= (int)$cnt['new'] ?>)</a>
-  <a class="tab-btn <?= $statusParam==='processing'?'active':'' ?>" href="?status=processing">กำลังดำเนินการ (<?= (int)$cnt['processing'] ?>)</a>
-  <a class="tab-btn <?= $statusParam==='shipped'?'active':'' ?>" href="?status=shipped">ส่งออก (<?= (int)$cnt['shipped'] ?>)</a>
-  <a class="tab-btn <?= $statusParam==='delivered'?'active':'' ?>" href="?status=delivered">จัดส่งแล้ว (<?= (int)$cnt['delivered'] ?>)</a>
-  <a class="tab-btn <?= $statusParam==='completed'?'active':'' ?>" href="?status=completed">เสร็จสิ้น (<?= (int)$cnt['completed'] ?>)</a>
-  <a class="tab-btn <?= $statusParam==='cancelled'?'active':'' ?>" href="?status=cancelled">ยกเลิก (<?= (int)$cnt['cancelled'] ?>)</a>
-</div>
-
-
+    <div class="tabs" role="tablist" aria-label="Filters">
+      <a class="tab-btn <?= $statusParam==='all'?'active':'' ?>" href="?status=all">ทั้งหมด (<?= (int)$cnt['all'] ?>)</a>
+      <a class="tab-btn <?= $statusParam==='new'?'active':'' ?>" href="?status=new">ใหม่ (<?= (int)$cnt['new'] ?>)</a>
+      <a class="tab-btn <?= $statusParam==='processing'?'active':'' ?>" href="?status=processing">กำลังดำเนินการ (<?= (int)$cnt['processing'] ?>)</a>
+      <a class="tab-btn <?= $statusParam==='shipped'?'active':'' ?>" href="?status=shipped">ส่งออก (<?= (int)$cnt['shipped'] ?>)</a>
+      <a class="tab-btn <?= $statusParam==='delivered'?'active':'' ?>" href="?status=delivered">จัดส่งแล้ว (<?= (int)$cnt['delivered'] ?>)</a>
+      <a class="tab-btn <?= $statusParam==='completed'?'active':'' ?>" href="?status=completed">เสร็จสิ้น (<?= (int)$cnt['completed'] ?>)</a>
+      <a class="tab-btn <?= $statusParam==='cancelled'?'active':'' ?>" href="?status=cancelled">ยกเลิก (<?= (int)$cnt['cancelled'] ?>)</a>
     </div>
   </div>
 
@@ -230,9 +222,9 @@ $stAgg->close();
         <table class="table table-modern align-middle" id="ordersTable">
           <thead>
             <tr>
-              <th style="min-width:80px">#</th>
+              <th style="min-width:80px">หมายเลขออเดอร์</th>
               <th style="min-width:160px">วันที่</th>
-              <th style="min-width:130px">ยอดรวม</th>
+              <th style="min-width:130px">ยอดชำระ</th>
               <th style="min-width:140px">วิธีชำระ</th>
               <th style="min-width:180px">สถานะชำระเงิน</th>
               <th style="min-width:220px">สถานะคำสั่งซื้อ</th>
@@ -248,6 +240,10 @@ $stAgg->close();
             $expiresAt = h(date('Y-m-d H:i:s', strtotime($o['expires_at'])));
             $createdAt = h(date('Y-m-d H:i:s', strtotime($o['created_at'])));
             $oid       = (int)$o['id'];
+
+            $subtotal  = (float)$o['total_amount'];              // ก่อนลด
+            $discount  = max(0.0, (float)($o['discount_total'] ?? 0));
+            $payable   = max(0.0, (float)($o['payable_total'] ?? ($subtotal - $discount)));
 
             // payment badge
             $payBadge = '<span class="badge bg-secondary">ยังไม่ชำระ</span>';
@@ -290,16 +286,17 @@ $stAgg->close();
             }
             $orderStatusHTML = ob_get_clean();
 
-            // searchable text
+            // สตริงสำหรับค้นหา
             $searchText = strtolower(
-  '#' . $oid . ' ' .
-  $createdAt . ' ' .
-  baht($o['total_amount']) . ' ' .
-  ($isBank ? 'bank' : 'cod') . ' ' .
-  ($o['payment_status'] ?? '') . ' ' .
-  ($o['order_status'] ?? '')
-); ?>
-            
+              '#' . $oid . ' ' .
+              $createdAt . ' ' .
+              baht($payable) . ' ' .
+              ($isBank ? 'bank' : 'cod') . ' ' .
+              ($o['payment_status'] ?? '') . ' ' .
+              ($o['order_status'] ?? '')
+            );
+          ?>
+            <tr data-status="<?= h(strtolower($o['order_status'])) ?>" data-search="<?= h($searchText) ?>">
               <td data-label="#">
                 <div class="d-flex align-items-center gap-2">
                   <span class="fw-semibold">#<?= $oid ?></span>
@@ -316,7 +313,14 @@ $stAgg->close();
                 <?php endif; ?>
               </td>
 
-              <td data-label="ยอดรวม"><span class="fw-semibold"><?= baht($o['total_amount']) ?> ฿</span></td>
+              <td data-label="ยอดชำระ">
+                <div class="fw-semibold"><?= baht($payable) ?> ฿</div>
+                <?php if ($discount > 0.0): ?>
+                  <div class="small text-muted">
+                    <del><?= baht($subtotal) ?> ฿</del> − ส่วนลด <?= baht($discount) ?> ฿
+                  </div>
+                <?php endif; ?>
+              </td>
 
               <td data-label="วิธีชำระ">
                 <?php if ($isBank): ?>
@@ -379,18 +383,16 @@ $stAgg->close();
         <nav aria-label="Page navigation" class="mt-3">
           <ul class="pagination justify-content-center mb-0">
             <?php $qStatus = '&status='.urlencode($statusParam); ?>
-<li class="page-item <?= $page<=1?'disabled':'' ?>">
-  <a class="page-link" href="?page=<?= $prev . $qStatus ?>" tabindex="-1">ก่อนหน้า</a>
-</li>
-
-
+            <li class="page-item <?= $page<=1?'disabled':'' ?>">
+              <a class="page-link" href="?page=<?= $prev . $qStatus ?>" tabindex="-1">ก่อนหน้า</a>
+            </li>
             <?php
               $window = 2;
               $from = max(1, $page-$window);
               $to   = min($total_pages, $page+$window);
 
               if ($from > 1) {
-                echo '<li class="page-item"><a class="page-link" href="?page=1">1</a></li>';
+                echo '<li class="page-item"><a class="page-link" href="?page=1'.$qStatus.'">1</a></li>';
                 if ($from > 2) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
               }
               for ($i=$from; $i<=$to; $i++) {
@@ -399,13 +401,12 @@ $stAgg->close();
               }
               if ($to < $total_pages) {
                 if ($to < $total_pages-1) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
-                echo '<li class="page-item"><a class="page-link" href="?page='.$total_pages.'">'.$total_pages.'</a></li>';
+                echo '<li class="page-item"><a class="page-link" href="?page='.$total_pages.$qStatus.'">'.$total_pages.'</a></li>';
               }
             ?>
-
             <li class="page-item <?= $page>=$total_pages?'disabled':'' ?>">
-  <a class="page-link" href="?page=<?= $next . $qStatus ?>">ถัดไป</a>
-</li>
+              <a class="page-link" href="?page=<?= $next . $qStatus ?>">ถัดไป</a>
+            </li>
           </ul>
         </nav>
       </div>
@@ -464,24 +465,19 @@ document.getElementById('btnRefresh')?.addEventListener('click', ()=> location.r
   function applyFilter(){
     const text = (q?.value || '').trim().toLowerCase();
     const rows = document.querySelectorAll('#ordersTable tbody tr');
-    let any = false;
     rows.forEach(tr=>{
       const s = tr.getAttribute('data-status') || '';
       const searchable = tr.getAttribute('data-search') || '';
       const okStatus = (status==='all' || s===status);
       const okText   = (text==='' || searchable.indexOf(text)>-1);
-      const show = okStatus && okText;
-      tr.style.display = show ? '' : 'none';
-      if(show) any = true;
+      tr.style.display = (okStatus && okText) ? '' : 'none';
     });
   }
 
   document.querySelectorAll('.tab-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      status = btn.getAttribute('data-status') || 'all';
-      applyFilter();
+    btn.addEventListener('click', (e)=>{
+      // ใช้ลิงก์ server-side อยู่แล้ว ไม่ต้องทำ client filter
+      // ถ้าอยากใช้ client-side ให้ป้องกัน default แล้วตั้ง status จาก data-attr
     });
   });
 

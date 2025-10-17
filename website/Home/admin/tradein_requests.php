@@ -38,12 +38,12 @@ function imgsrc($v){
 }
 
 $statusMap = [
-  'submitted'=>'ส่งคำขอแล้ว','reviewing'=>'กำลังประเมิน','offered'=>'มีราคาเสนอ',
+  'submitted'=>'ส่งคำขอแล้ว','review'=>'กำลังประเมิน','offered'=>'มีราคาเสนอ',
   'accepted'=>'ยอมรับข้อเสนอ','rejected'=>'ปฏิเสธข้อเสนอ',
   'cancelled'=>'ยกเลิก','completed'=>'เสร็จสิ้น'
 ];
 $statusBadge = [
-  'submitted'=>'secondary','reviewing'=>'info',
+  'submitted'=>'secondary','review'=>'info',
   'offered'=>'primary','accepted'=>'success',
   'rejected'=>'danger','cancelled'=>'danger','completed'=>'success'
 ];
@@ -195,12 +195,14 @@ html[data-theme="dark"] .chip-reset{
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="p-2">
-      <a class="side-a" href="dashboard.php"><i class="bi bi-speedometer2 me-2"></i> Dashboard</a>
-      <a class="side-a" href="orders.php"><i class="bi bi-receipt me-2"></i> Orders</a>
-      <a class="side-a" href="products.php"><i class="bi bi-box-seam me-2"></i> Products</a>
-      <a class="side-a active" href="tradein_requests.php"><i class="bi bi-arrow-left-right me-2"></i> Trade-in</a>
-      <a class="side-a" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> Service</a>
-      <a class="side-a" href="users.php"><i class="bi bi-people me-2"></i> Users</a>
+      <a class="side-a" href="dashboard.php"><i class="bi bi-speedometer2 me-2"></i> แดชบอร์ด</a>
+      <a class="side-a" href="sales_summary.php"><i class="bi bi-graph-up-arrow me-2"></i> สรุปยอดขาย</a>
+      <a class="side-a" href="orders.php"><i class="bi bi-receipt me-2"></i> ออเดอร์</a>
+      <a class="side-a" href="products.php"><i class="bi bi-box-seam me-2"></i> สินค้า</a>
+      <a class="side-a active" href="tradein_requests.php"><i class="bi bi-arrow-left-right me-2"></i> เทิร์นสินค้า</a>
+      <a class="side-a" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> งานซ่อม</a>
+      <a class="side-a" href="users.php"><i class="bi bi-people me-2"></i> ผู้ใช้</a>
+      <a class="side-a" href="coupons_list.php"><i class="bi bi-ticket-detailed me-2"></i> คูปอง</a>
       <a class="side-a" href="support.php"><i class="bi bi-chat-dots me-2"></i> กล่องข้อความ</a>
     </div>
     <div class="p-3 border-top">

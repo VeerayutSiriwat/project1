@@ -8,8 +8,34 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
   exit;
 }
 
-function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
-function baht($n){ return number_format((float)$n, 2); }
+if (!function_exists('has_col')) {
+  function has_col(mysqli $conn, string $table, string $col): bool {
+    $table = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+    $col   = preg_replace('/[^a-zA-Z0-9_]/', '', $col);
+    $q = $conn->query("SHOW COLUMNS FROM `$table` LIKE '$col'");
+    return ($q && $q->num_rows > 0);
+  }
+}
+
+if (!function_exists('table_exists')) {
+  function table_exists(mysqli $conn, string $table): bool {
+    $t = $conn->real_escape_string($table);
+    $q = $conn->query("SHOW TABLES LIKE '$t'");
+    return ($q && $q->num_rows > 0);
+  }
+}
+
+if (!function_exists('h')) {
+  function h($s) {
+    return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8');
+  }
+}
+
+if (!function_exists('baht')) {
+  function baht($n) {
+    return number_format((float)$n, 2);
+  }
+}
 
 /* ===== Admin name ===== */
 $admin_id = (int)$_SESSION['user_id'];
@@ -78,28 +104,153 @@ $bank_pending = (int)$conn->query("
     )
 ")->fetch_assoc()['c'];
 
-/* ===== Sales 7d ===== */
-$revenue7 = 0.00;
+/* ===== Sales this month ===== */
+$revenueMonth = 0.00;
 $res = $conn->query("
   SELECT COALESCE(SUM(oi.quantity*oi.unit_price),0) AS rev
   FROM orders o
   JOIN order_items oi ON oi.order_id = o.id
-  WHERE o.payment_status='paid' AND o.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+  WHERE o.payment_status='paid'
+    AND o.created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
+    AND o.created_at <  DATE_ADD(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
 ");
-if ($res) { $revenue7 = (float)$res->fetch_assoc()['rev']; }
+if ($res) { $revenueMonth = (float)$res->fetch_assoc()['rev']; }
 
-/* ===== Latest orders ===== */
+
+function table_exists(mysqli $c, string $t): bool {
+  $t = $c->real_escape_string($t);
+  $q = $c->query("SHOW TABLES LIKE '$t'");
+  return $q && $q->num_rows > 0;
+}
+
+$hasCouponCode  = has_col($conn,'orders','coupon_code');
+$hasDiscountCol = has_col($conn,'orders','discount_total');
+$hasTotalPrice  = has_col($conn,'orders','total_price');
+$hasUsagesTab   = table_exists($conn,'coupon_usages');
+
+/* ออเดอร์ที่ “ใช้คูปอง” */
+$conds = [];
+if ($hasCouponCode) $conds[] = "(o.coupon_code IS NOT NULL AND o.coupon_code<>'')";
+if ($hasUsagesTab)  $conds[] = "EXISTS(SELECT 1 FROM coupon_usages cu WHERE cu.order_id=o.id)";
+$couponWhere = $conds ? '('.implode(' OR ',$conds).')' : '0'; // ถ้าไม่มีทั้งสอง ก็จะได้ 0
+
+/* ช่วง “เดือนนี้” + ต้องชำระแล้ว */
+$monthWhere = "
+  o.payment_status='paid'
+  AND o.created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
+  AND o.created_at <  DATE_ADD(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
+";
+
+/* รวมยอดสินค้า (กัน N+1) */
+$subItems = "SELECT order_id, SUM(quantity*unit_price) AS items_total
+             FROM order_items GROUP BY order_id";
+
+/* นิยาม grand_total แบบทนสคีมา */
+$grandExpr = $hasTotalPrice
+  ? "COALESCE(o.total_price,0)"
+  : ($hasDiscountCol
+      ? "COALESCE(t.items_total,0) - COALESCE(o.discount_total,0)"
+      : "COALESCE(t.items_total,0)");
+
+$Coupon = ['orders'=>0,'sales'=>0.0,'discount'=>0.0,'share'=>0.0];
+
+/* ยอดขายจากคูปองในเดือนนี้ */
+$sqlC = "
+  SELECT
+    COUNT(DISTINCT o.id) AS c_orders,
+    SUM($grandExpr)      AS c_sales
+  FROM orders o
+  LEFT JOIN ($subItems) t ON t.order_id=o.id
+  WHERE $couponWhere AND $monthWhere
+";
+if ($rs=$conn->query($sqlC)) {
+  $r=$rs->fetch_assoc() ?: [];
+  $Coupon['orders']=(int)($r['c_orders']??0);
+  $Coupon['sales'] =(float)($r['c_sales']??0.0);
+}
+
+/* ส่วนลดจากคูปองในเดือนนี้ */
+if ($hasDiscountCol) {
+  $sqlD = "
+    SELECT SUM(COALESCE(o.discount_total,0)) AS dsum
+    FROM orders o
+    WHERE $couponWhere AND $monthWhere
+  ";
+  if ($rs=$conn->query($sqlD)) $Coupon['discount'] = (float)($rs->fetch_assoc()['dsum'] ?? 0.0);
+} elseif ($hasUsagesTab) {
+  $sqlD = "
+    SELECT COALESCE(SUM(u.amount),0) AS dsum
+    FROM coupon_usages u
+    JOIN orders o ON o.id=u.order_id
+    WHERE $monthWhere
+  ";
+  if ($rs=$conn->query($sqlD)) $Coupon['discount'] = (float)($rs->fetch_assoc()['dsum'] ?? 0.0);
+}
+
+/* คิด % สัดส่วนเทียบยอดขายรวมเดือนนี้ */
+$totalSalesMonth = 0.0;
+$grandExprAll = $hasTotalPrice
+  ? "COALESCE(o.total_price,0)"
+  : ($hasDiscountCol ? "COALESCE(t.items_total,0) - COALESCE(o.discount_total,0)" : "COALESCE(t.items_total,0)");
+$sqlAll = "
+  SELECT SUM($grandExprAll) AS rev
+  FROM orders o
+  LEFT JOIN ($subItems) t ON t.order_id=o.id
+  WHERE $monthWhere
+";
+if ($rs=$conn->query($sqlAll)) $totalSalesMonth = (float)($rs->fetch_assoc()['rev'] ?? 0.0);
+$Coupon['share'] = $totalSalesMonth>0 ? round($Coupon['sales']*100/$totalSalesMonth,2) : 0.0;
+$totalSalesMonth = 0.0;
+$grandExprAll = $hasTotalPrice
+  ? "COALESCE(o.total_price,0)"
+  : ($hasDiscountCol ? "COALESCE(t.items_total,0) - COALESCE(o.discount_total,0)" : "COALESCE(t.items_total,0)");
+
+$subItems = "SELECT order_id, SUM(quantity*unit_price) AS items_total
+             FROM order_items GROUP BY order_id";
+
+$sqlAll = "
+  SELECT SUM($grandExprAll) AS rev
+  FROM orders o
+  LEFT JOIN ($subItems) t ON t.order_id=o.id
+  WHERE $monthWhere
+";
+if ($rs=$conn->query($sqlAll)) $totalSalesMonth = (float)($rs->fetch_assoc()['rev'] ?? 0.0);
+
+$Coupon['share'] = $totalSalesMonth>0 ? round($Coupon['sales']*100/$totalSalesMonth,2) : 0.0;
+
+/* ใช้ยอดสุทธิทั้งเดือนเป็น 'ยอดขายเดือนนี้' บนการ์ดสรุปเร็ว */
+$revenueMonth = $totalSalesMonth;
+/* ===== Latest orders (ยอดสุทธิหลังหักคูปอง) ===== */
+$hasDiscountCol = has_col($conn,'orders','discount_total');
+$hasTotalPrice  = has_col($conn,'orders','total_price');
+
+/* รวมยอดสินค้าแบบต่อออเดอร์ */
+$itemsSub = "
+  SELECT order_id, SUM(quantity*unit_price) AS items_total
+  FROM order_items
+  GROUP BY order_id
+";
+
+/* นิยามยอดสุทธิที่ทนต่อหลายสคีมา:
+   - ถ้ามี total_price ใช้อันนั้นเป็นหลัก
+   - ถ้าไม่มีก็ใช้ items_total - discount_total (ถ้ามี discount_total)
+   - ถ้าไม่มีทั้งคู่ ใช้ items_total */
+$grandExpr = $hasTotalPrice
+  ? "COALESCE(o.total_price,0)"
+  : ($hasDiscountCol
+      ? "COALESCE(t.items_total,0) - COALESCE(o.discount_total,0)"
+      : "COALESCE(t.items_total,0)");
+
 $sql_latest = "
   SELECT 
     o.id, o.user_id, o.status, o.payment_method, o.payment_status, o.created_at,
     o.slip_image, o.expires_at,
     GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), COALESCE(o.expires_at, DATE_ADD(o.created_at, INTERVAL 15 MINUTE)))) AS remaining_sec,
     u.username,
-    COALESCE(SUM(oi.quantity*oi.unit_price),0) AS total_amount
+    $grandExpr AS total_amount
   FROM orders o
   LEFT JOIN users u ON u.id = o.user_id
-  LEFT JOIN order_items oi ON oi.order_id = o.id
-  GROUP BY o.id
+  LEFT JOIN ($itemsSub) t ON t.order_id = o.id
   ORDER BY o.created_at DESC
   LIMIT 10
 ";
@@ -192,14 +343,72 @@ $repair_counts = [
   'cancelled' => (int)($svc['cancelled'] ?? 0),
 ];
 
+
 /* ===== Trade-in KPIs ===== */
-$trade_counts = ['all'=>0,'reviewing'=>0,'offered'=>0,'completed'=>0];
-$trade_counts['all'] = (int)$conn->query("SELECT COUNT(*) c FROM tradein_requests")->fetch_assoc()['c'];
-if ($conn->query("SHOW TABLES LIKE 'tradein_requests'")->num_rows){
-  $trade_counts['reviewing'] = (int)$conn->query("SELECT COUNT(*) c FROM tradein_requests WHERE status='reviewing'")->fetch_assoc()['c'];
-  $trade_counts['offered']   = (int)$conn->query("SELECT COUNT(*) c FROM tradein_requests WHERE status='offered'")->fetch_assoc()['c'];
-  $trade_counts['completed'] = (int)$conn->query("SELECT COUNT(*) c FROM tradein_requests WHERE status IN ('completed','accepted')")->fetch_assoc()['c'];
+$trade_counts = [
+  'all'       => 0,
+  'submitted' => 0,
+  'review'    => 0,
+  'offered'   => 0,
+  'accepted'  => 0
+];
+
+if ($conn->query("SHOW TABLES LIKE 'tradein_requests'")->num_rows) {
+  $trade_counts['all'] = (int)$conn->query("SELECT COUNT(*) c FROM tradein_requests")->fetch_assoc()['c'];
+
+  $trade_counts['submitted'] = (int)$conn->query("
+    SELECT COUNT(*) c FROM tradein_requests WHERE status='submitted'
+  ")->fetch_assoc()['c'];
+
+  $trade_counts['review'] = (int)$conn->query("
+    SELECT COUNT(*) c FROM tradein_requests WHERE status='review'
+  ")->fetch_assoc()['c'];
+
+  $trade_counts['offered'] = (int)$conn->query("
+    SELECT COUNT(*) c FROM tradein_requests WHERE status='offered'
+  ")->fetch_assoc()['c'];
+
+  // ในสคีมานี้ “เสร็จสิ้น” เทียบเท่า ‘accepted’
+  $trade_counts['accepted'] = (int)$conn->query("
+    SELECT COUNT(*) c FROM tradein_requests WHERE status='accepted'
+  ")->fetch_assoc()['c'];
 }
+
+
+
+if ($conn->query("SHOW TABLES LIKE 'tradein_requests'")->num_rows) {
+  // ทั้งหมด
+  $trade_counts['all'] = (int)$conn->query("SELECT COUNT(*) c FROM tradein_requests")->fetch_assoc()['c'];
+
+  // ✅ ส่งคำขอแล้ว / งานใหม่ (เผื่อ alias ที่เคยใช้)
+  $trade_counts['submitted'] = (int)$conn->query("
+    SELECT COUNT(*) c 
+    FROM tradein_requests 
+    WHERE status IN ('submitted','new','sent','awaiting_review','pending_user')
+  ")->fetch_assoc()['c'];
+
+  // กำลังประเมิน (รวม alias)
+  $trade_counts['reviewing'] = (int)$conn->query("
+    SELECT COUNT(*) c 
+    FROM tradein_requests 
+    WHERE status IN ('reviewing','awaiting_review','pending','in_review','evaluating')
+  ")->fetch_assoc()['c'];
+
+  // มีราคาเสนอ (รวม alias)
+  $trade_counts['offered'] = (int)$conn->query("
+    SELECT COUNT(*) c 
+    FROM tradein_requests 
+    WHERE status IN ('offered','quoted','proposed')
+  ")->fetch_assoc()['c'];
+
+  // เสร็จสิ้น/ยอมรับข้อเสนอ (รวม alias)
+  $trade_counts['completed'] = (int)$conn->query("
+    SELECT COUNT(*) c 
+    FROM tradein_requests 
+    WHERE status IN ('completed','accepted','confirmed','closed','done')
+  ")->fetch_assoc()['c'];
+}
+
 
 /* helper: ตรวจว่าตารางมีคอลัมน์นี้ไหม */
 function has_col(mysqli $conn, string $table, string $col): bool {
@@ -303,6 +512,7 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
     .chip{display:inline-flex; align-items:center; gap:6px; background:#eaf2ff; border:1px solid #cfe1ff; padding:4px 10px; border-radius:999px; font-weight:600; font-size:.85rem;}
      html[data-theme="dark"] .chip{ background:#0f1b33; border-color:#1d2b52; }
      
+     
   </style>
 </head>
 <body>
@@ -347,13 +557,14 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="p-2">
-      <a class="side-a active" href="dashboard.php"><i class="bi bi-speedometer2 me-2"></i> Dashboard</a>
-      <a class="side-a" href="orders.php"><i class="bi bi-receipt me-2"></i> Orders</a>
-      <a class="side-a" href="products.php"><i class="bi bi-box-seam me-2"></i> Products</a>
-      <a class="side-a" href="tradein_requests.php"><i class="bi bi-arrow-left-right me-2"></i> Trade-in</a>
-      <a class="side-a" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> Service</a>
-      <a class="side-a" href="users.php"><i class="bi bi-people me-2"></i> Users</a>
-      <a class="side-a" href="coupons_list.php"><i class="bi bi-ticket-detailed me-2"></i> Coupons</a>
+      <a class="side-a active" href="dashboard.php"><i class="bi bi-speedometer2 me-2"></i> แดชบอร์ด</a>
+      <a class="side-a" href="sales_summary.php"><i class="bi bi-graph-up-arrow me-2"></i> สรุปยอดขาย</a>
+      <a class="side-a" href="orders.php"><i class="bi bi-receipt me-2"></i> ออเดอร์</a>
+      <a class="side-a" href="products.php"><i class="bi bi-box-seam me-2"></i> สินค้า</a>
+      <a class="side-a" href="tradein_requests.php"><i class="bi bi-arrow-left-right me-2"></i> เทิร์นสินค้า</a>
+      <a class="side-a" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> งานซ่อม</a>
+      <a class="side-a" href="users.php"><i class="bi bi-people me-2"></i> ผู้ใช้</a>
+      <a class="side-a" href="coupons_list.php"><i class="bi bi-ticket-detailed me-2"></i> คูปอง</a>
       <a class="side-a" href="support.php"><i class="bi bi-chat-dots me-2"></i> กล่องข้อความ</a>
     </div>
   </aside>
@@ -366,7 +577,7 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
       <div class="d-flex flex-wrap align-items-center gap-3">
         <div class="flex-grow-1">
           <div class="text-muted small">สรุปเร็ว</div>
-          <div class="h4 m-0">ยอดขาย 7 วัน: <?= baht($revenue7) ?> ฿</div>
+          <div class="h4 m-0">ยอดขายเดือนนี้: <?= baht($revenueMonth) ?> ฿</div>
         </div>
         <a class="btn btn-primary" href="calendar.php"><i class="bi bi-calendar-week"></i> ดูปฏิทินนัด</a>
         <a class="btn btn-outline-primary" href="service_tickets.php"><i class="bi bi-wrench"></i> คิวซ่อม</a>
@@ -376,54 +587,70 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
 
     <!-- KPIs -->
     <div class="row g-3">
-      <div class="col-sm-6 col-xl-3">
+      <div class="col-sm-6 col-xl-2">
         <div class="glass p-3 kpi h-100 kpi-soft">
           <div class="d-flex align-items-center gap-3">
             <div class="icon"><i class="bi bi-people"></i></div>
             <div>
-              <div class="text-muted small">Users</div>
+              <div class="text-muted small">ผู้ใช้</div>
               <div class="fs-3 fw-bold"><?= number_format($users_total) ?></div>
               <div class="small text-secondary">ทั้งหมด</div>
             </div>
           </div>
         </div>
       </div>
-      <div class="col-sm-6 col-xl-3">
+      <div class="col-sm-6 col-xl-2">
         <div class="glass p-3 kpi h-100 kpi-soft">
           <div class="d-flex align-items-center gap-3">
             <div class="icon" style="background:#0ea5e9"><i class="bi bi-box-seam"></i></div>
             <div>
-              <div class="text-muted small">Active Products</div>
+              <div class="text-muted small">สินค้าพร้อมขาย</div>
               <div class="fs-3 fw-bold"><?= number_format($products_active) ?></div>
               <div class="small text-secondary">พร้อมขาย</div>
             </div>
           </div>
         </div>
       </div>
-      <div class="col-sm-6 col-xl-3">
+      <div class="col-sm-6 col-xl-2">
         <div class="glass p-3 kpi h-100 kpi-soft">
           <div class="d-flex align-items-center gap-3">
             <div class="icon" style="background:#10b981"><i class="bi bi-receipt"></i></div>
             <div>
-              <div class="text-muted small">Open Orders</div>
+              <div class="text-muted small">ออเดอร์ใหม่</div>
               <div class="fs-3 fw-bold"><?= number_format($orders_open) ?></div>
               <div class="small text-secondary">ใหม่/กำลังดำเนินการ</div>
             </div>
           </div>
         </div>
       </div>
-      <div class="col-sm-6 col-xl-3">
+      <div class="col-sm-6 col-xl-2">
         <div class="glass p-3 kpi h-100 kpi-soft">
           <div class="d-flex align-items-center gap-3">
             <div class="icon" style="background:#f59e0b"><i class="bi bi-bank2"></i></div>
             <div>
-              <div class="text-muted small">Bank Pending</div>
+              <div class="text-muted small">ชำระธนาคาร</div>
               <div class="fs-3 fw-bold"><?= number_format($bank_pending) ?></div>
               <div class="small text-secondary">รอตรวจสลิป</div>
             </div>
           </div>
         </div>
       </div>
+      <div class="col-sm-6 col-xl-4">
+    <div class="glass p-3 kpi h-100 kpi-soft">
+      <div class="d-flex align-items-center gap-3">
+        <div class="icon" style="background:#8b5cf6"><i class="bi bi-ticket-perforated"></i></div>
+        <div>
+          <div class="text-muted small">ยอดขายจากคูปอง (เดือนนี้)</div>
+          <div class="fs-3 fw-bold"><?= baht($Coupon['sales']) ?> ฿</div>
+          <div class="small text-secondary">
+            ใช้ใน <?= (int)$Coupon['orders'] ?> ออเดอร์
+            <?= $Coupon['share']>0 ? '• '.$Coupon['share'].'% ของยอดขายเดือนนี้' : '' ?>
+          </div>
+          <div class="small text-danger">ส่วนลดสะสม: −<?= baht($Coupon['discount']) ?> ฿</div>
+        </div>
+      </div>
+    </div>
+  </div>
     </div>
 
     <!-- Service & Trade-in mini dashboards -->
@@ -470,11 +697,34 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
             <a class="btn btn-sm btn-outline-success" href="tradein_requests.php">ไปที่เทิร์น</a>
           </div>
           <div class="row text-center g-3">
-            <div class="col-6 col-md"><div class="fs-3 fw-bold"><?= $trade_counts['all'] ?></div><div class="text-muted">ทั้งหมด</div></div>
-            <div class="col-6 col-md"><div class="fs-4 fw-bold"><?= $trade_counts['reviewing'] ?></div><div class="text-muted">กำลังประเมิน</div></div>
-            <div class="col-6 col-md"><div class="fs-4 fw-bold"><?= $trade_counts['offered'] ?></div><div class="text-muted">มีราคาเสนอ</div></div>
-            <div class="col-6 col-md"><div class="fs-4 fw-bold text-success"><?= $trade_counts['completed'] ?></div><div class="text-muted">เสร็จสิ้น</div></div>
-          </div>
+  <div class="col-6 col-md">
+
+
+  <div class="row text-center g-3">
+  <div class="col-6 col-md">
+    <div class="fs-3 fw-bold"><?= $trade_counts['all'] ?></div>
+    <div class="text-muted">ทั้งหมด</div>
+  </div>
+  <div class="col-6 col-md">
+    <div class="fs-4 fw-bold text-primary"><?= $trade_counts['submitted'] ?></div>
+    <div class="text-muted">ส่งคำขอแล้ว</div>
+  </div>
+  <div class="col-6 col-md">
+    <div class="fs-4 fw-bold"><?= $trade_counts['review'] ?></div>
+    <div class="text-muted">กำลังประเมิน</div>
+  </div>
+  <div class="col-6 col-md">
+    <div class="fs-4 fw-bold"><?= $trade_counts['offered'] ?></div>
+    <div class="text-muted">มีราคาเสนอ</div>
+  </div>
+  <div class="col-6 col-md">
+    <div class="fs-4 fw-bold text-success"><?= $trade_counts['accepted'] ?></div>
+    <div class="text-muted">ยอมรับข้อเสนอ</div>
+  </div>
+</div>
+
+</div>
+
         </div>
       </div>
     </div>
@@ -554,7 +804,8 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
         </table>
       </div>
     </div>
-
+    
+    
     <!-- Support widget -->
     <div class="glass">
       <div class="d-flex align-items-center justify-content-between p-3 border-bottom">

@@ -301,7 +301,7 @@ if ($res = $conn->query("
           </div>
           <div class="accordion-item">
             <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#f3">รับซ่อม/รับเทิร์นไหม?</button></h2>
-            <div id="f3" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body">มีบริการซ่อมและรับเทิร์น ติดต่อได้ที่หน้า <a href="contact.php">บริการซ่อม</a></div></div>
+            <div id="f3" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body">มีบริการซ่อมและรับเทิร์น ติดต่อได้ที่หน้า <a href="service.php">บริการซ่อม</a></div></div>
           </div>
         </div>
       </div>

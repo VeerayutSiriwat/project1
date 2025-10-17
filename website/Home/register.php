@@ -192,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="brand-card">
       <div class="brand-hero"></div>
       <div class="brand-body">
-        <span class="badge-soft"><i class="bi bi-stars"></i> Create your account</span>
+        <span class="badge-soft"><i class="bi bi-stars"></i> สร้างบัญชีใหม่ </span>
         <h2 class="mt-3 mb-2 fw-bold">เริ่มต้นใช้งานระบบร้านค้า</h2>
         <p class="mb-0 text-secondary">สมัครสมาชิกเพื่อจัดการสินค้า ออเดอร์ และดูแดชบอร์ดอย่างมืออาชีพ</p>
       </div>
@@ -202,7 +202,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <!-- Right card -->
   <div>
     <div class="text-center mb-3">
-  <img src="assets/img/webapp_logo.png" alt="WEB APP" style="height:70px">
 </div>
     <div class="glass-card">
       <div class="card-head">

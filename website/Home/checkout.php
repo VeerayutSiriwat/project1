@@ -103,32 +103,60 @@ function validate_and_price_coupon(mysqli $conn, int $uid, string $code, array $
   if (!empty($starts) && $starts>$now) { $out['msg']='คูปองนี้ยังไม่เริ่มใช้งาน'; return $out; }
   if (!empty($ends)   && $ends<$now)   { $out['msg']='คูปองนี้หมดอายุแล้ว'; return $out; }
 
-  // ใช้กับอะไร
+  // ใช้ได้กับอะไร
   $applies = strtolower($c['applies_to'] ?? 'all'); // all/products/services/tradein
   if (!in_array($applies,['all','products'],true)) {
     $out['msg']='คูปองนี้ไม่รองรับการซื้อสินค้า'; return $out;
   }
 
-  // ตรวจจำนวนครั้ง
+  // ---------- นับการใช้คูปอง (กันใช้ซ้ำ) ----------
   $perUser = (int)($c['per_user_limit'] ?? 0);
   $usesLim = (int)($c['uses_limit'] ?? 0);
-  $usedTot = (int)($c['used_count'] ?? 0);
 
-  $myUsed = 0;
-  if (table_exists($conn,'coupon_usages')) {
-    $st=$conn->prepare("SELECT COUNT(*) c FROM coupon_usages WHERE coupon_id=? AND user_id=?");
-    $cid=(int)$c['id']; $st->bind_param('ii',$cid,$uid); $st->execute();
-    $myUsed=(int)($st->get_result()->fetch_assoc()['c'] ?? 0); $st->close();
+  // ใช้รวมทั้งระบบ (ออเดอร์ที่ยังไม่ยกเลิก/ไม่คืนเงิน)
+  $usedTot = 0;
+  $myUsed  = 0;
+  if ($res = $conn->prepare("
+      SELECT 
+        COALESCE(SUM(t.anyone),0) AS used_total,
+        COALESCE(SUM(t.mine),0)   AS used_by_me
+      FROM (
+        SELECT 
+          1 AS anyone,
+          CASE WHEN cu.user_id=? THEN 1 ELSE 0 END AS mine
+        FROM coupon_usages cu
+        INNER JOIN orders o ON o.id = cu.order_id
+        WHERE cu.coupon_id = ?
+          AND cu.context = 'order'
+          AND o.payment_status IN ('unpaid','pending','paid')
+          AND (o.cancel_reason IS NULL OR o.cancel_reason = '')
+        GROUP BY cu.order_id
+      ) t
+    ")){
+    $cid = (int)$c['id'];
+    $res->bind_param('ii', $uid, $cid);
+    $res->execute();
+    $row = $res->get_result()->fetch_assoc() ?: ['used_total'=>0,'used_by_me'=>0];
+    $res->close();
+    $usedTot = (int)$row['used_total'];
+    $myUsed  = (int)$row['used_by_me'];
   }
-  if ($perUser>0 && $myUsed >= $perUser){ $out['msg']='คุณใช้คูปองนี้ครบแล้ว'; return $out; }
-  if ($usesLim>0 && $usedTot >= $usesLim){ $out['msg']='คูปองนี้มีผู้ใช้ครบแล้ว'; return $out; }
 
-  // ฐานคำนวณ (กันซ้อนกับราคาลด ถ้าไม่อนุญาต)
+  if ($usesLim>0 && $usedTot >= $usesLim){ 
+    $out['msg']='คูปองนี้มีผู้ใช้ครบแล้ว'; 
+    return $out; 
+  }
+  if ($perUser>0 && $myUsed >= $perUser){ 
+    $out['msg']='คุณใช้คูปองนี้ครบแล้ว'; 
+    return $out; 
+  }
+
+  // ---------- คำนวณฐานเพื่อคิดส่วนลด ----------
   $allowStack = (int)($c['allow_stack_with_discount_price'] ?? 0);
   $base = 0.0;
   foreach ($items as $it) {
     $hasDiscount = isset($it['orig_price']) && (float)$it['price'] < (float)$it['orig_price'];
-    if (!$allowStack && $hasDiscount) continue; // ชิ้นที่ลดราคาอยู่ ไม่เอามาคิด
+    if (!$allowStack && $hasDiscount) continue; // ห้ามซ้อนกับราคาลด
     $base += (float)$it['sum'];
   }
   if ($base <= 0) {
@@ -143,7 +171,7 @@ function validate_and_price_coupon(mysqli $conn, int $uid, string $code, array $
     return $out;
   }
 
-  // คำนวณส่วนลด
+  // ---------- คำนวณส่วนลด ----------
   $type = strtolower($c['type'] ?? 'fixed'); // fixed|percent
   $value= (float)($c['value'] ?? 0);
   $max  = (float)($c['max_discount'] ?? 0);
@@ -162,10 +190,10 @@ function validate_and_price_coupon(mysqli $conn, int $uid, string $code, array $
   return $out;
 }
 
-/* รายการคูปองของฉัน (ไว้ให้กดเลือก) */
-$userCoupons = [];
+
+/* รายการคูปองของฉัน (ไว้ให้กดเลือก) — ใช้ DISTINCT + กรองออเดอร์ */
 $cols = [
-  "c.id", "c.code", "c.type", "c.value",
+  "c.id","c.code","c.type","c.value",
   (has_col($conn,'coupons','min_order_total') ? "COALESCE(c.min_order_total,0) AS min_order_total" : "0 AS min_order_total"),
   (has_col($conn,'coupons','applies_to') ? "COALESCE(c.applies_to,'all') AS applies_to" : "'all' AS applies_to"),
   (has_col($conn,'coupons','allow_stack_with_discount_price') ? "COALESCE(c.allow_stack_with_discount_price,0) AS allow_stack_with_discount_price" : "0 AS allow_stack_with_discount_price"),
@@ -174,25 +202,42 @@ $cols = [
   "c.status",
   (has_col($conn,'coupons','uses_limit')     ? "COALESCE(c.uses_limit,0)     AS uses_limit"     : "0 AS uses_limit"),
   (has_col($conn,'coupons','per_user_limit') ? "COALESCE(c.per_user_limit,0) AS per_user_limit" : "0 AS per_user_limit"),
-  "COALESCE(SUM(CASE WHEN cu.id IS NOT NULL THEN 1 ELSE 0 END),0) AS used_total"
+
+  // รวมใช้ทั้งหมด (ไม่นับออเดอร์ที่ยกเลิก) แบบ DISTINCT
+  "(SELECT COUNT(DISTINCT cu1.order_id)
+      FROM coupon_usages cu1
+      JOIN orders o1 ON o1.id = cu1.order_id
+     WHERE cu1.coupon_id = c.id
+       AND cu1.context = 'order'
+       AND o1.payment_status IN ('unpaid','pending','paid')
+       AND (o1.cancel_reason IS NULL OR o1.cancel_reason = '')
+   ) AS used_total",
+
+  // รวมที่ผู้ใช้คนนี้ใช้ไปแล้ว
+  "(SELECT COUNT(DISTINCT cu2.order_id)
+      FROM coupon_usages cu2
+      JOIN orders o2 ON o2.id = cu2.order_id
+     WHERE cu2.coupon_id = c.id
+       AND cu2.user_id = ?
+       AND cu2.context = 'order'
+       AND o2.payment_status IN ('unpaid','pending','paid')
+       AND (o2.cancel_reason IS NULL OR o2.cancel_reason = '')
+   ) AS used_by_me"
 ];
-/* เงื่อนไข “คูปองที่ผูกกับฉันหรือสาธารณะ” รองรับได้ทั้งสคีมาที่มี/ไม่มี segment */
+
 $hasSegment = has_col($conn,'coupons','segment');
 $publicClause = $hasSegment ? "c.segment='all'" : "c.user_id IS NULL";
 
-/* ประกอบ SQL แบบยืดหยุ่น */
 $sql = "
   SELECT ".implode(',', $cols)."
   FROM coupons c
-  LEFT JOIN coupon_usages cu ON cu.coupon_id = c.id
   WHERE (c.user_id=? OR {$publicClause}) AND c.status='active'
     AND (".(has_col($conn,'coupons','starts_at') ? "c.starts_at IS NULL OR c.starts_at<=NOW()" : "1=1").")
     AND (".(has_col($conn,'coupons','ends_at')   ? "c.ends_at   IS NULL OR c.ends_at>=NOW()"   : (has_col($conn,'coupons','expiry_date') ? "c.expiry_date IS NULL OR c.expiry_date>=NOW()" : "1=1")).")
-  GROUP BY c.id
   ORDER BY c.id DESC
 ";
 if ($st = $conn->prepare($sql)) {
-  $st->bind_param('i',$user_id);
+  $st->bind_param('ii', $user_id, $user_id);
   $st->execute();
   $userCoupons = $st->get_result()->fetch_all(MYSQLI_ASSOC);
   $st->close();
@@ -272,6 +317,8 @@ $book = []; // เปิดใช้ได้ภายหลัง
     .coupon-pill:hover{ transform:translateY(-1px); box-shadow:0 8px 24px rgba(17,24,39,.05);}
     .coupon-pill .code{font-weight:800}
     .coupon-pill .val{font-size:.9rem;color:#475569}
+    /* disabled state */
+    .coupon-pill.disabled{opacity:.55; pointer-events:none; border-style:solid; border-color:#e5e7eb;}
     .text-strike{text-decoration:line-through;color:#94a3b8}
     @media(min-width:992px){.sticky-summary{ position:sticky; top:18px; }}
     .line-dash{ height:1px; background:repeating-linear-gradient(90deg, transparent 0 8px, var(--line) 8px 16px); }
@@ -348,23 +395,49 @@ $book = []; // เปิดใช้ได้ภายหลัง
           <?php else: ?>
             <div class="d-flex flex-wrap gap-2 mb-2" id="myCoupons">
               <?php foreach($userCoupons as $c):
-                $cap = ($c['type']==='percent' ? (float)$c['value'].'%' : baht($c['value']).' ฿');
+                $cap   = ($c['type']==='percent' ? (float)$c['value'].'%' : baht($c['value']).' ฿');
                 $limit = (int)$c['uses_limit'];
-                $used  = (int)$c['used_total'];
-                $left  = $limit>0 ? max(0, $limit-$used) : 'ไม่จำกัด';
+                $per   = (int)$c['per_user_limit'];
+                $usedTotal = (int)$c['used_total'];
+                $usedMe    = (int)$c['used_by_me'];
+
+                $leftTotalRaw = ($limit>0) ? max(0, $limit-$usedTotal) : PHP_INT_MAX;
+                $leftMeRaw    = ($per>0)   ? max(0, $per-$usedMe)       : PHP_INT_MAX;
+
+                $leftTotalTxt = ($limit>0) ? (string)max(0, $limit-$usedTotal) : 'ไม่จำกัด';
+                $leftMeTxt    = ($per>0)   ? (string)max(0, $per-$usedMe)       : 'ไม่จำกัด';
+
+                $limitText = ($limit>0 || $per>0)
+                  ? "จำกัดสิทธิ์".($per>0 ? " คนละ {$per} ครั้ง" : "").($limit>0 ? " • รวมทั้งระบบ {$limit} ครั้ง" : "")
+                  : "ไม่จำกัดสิทธิ์";
+
+                $exhausted = ($leftTotalRaw === 0) || ($leftMeRaw === 0);
+                if ($exhausted) continue;
+                $btnClass = $exhausted ? 'coupon-pill disabled' : 'coupon-pill';
               ?>
-              <button type="button"
-                      class="coupon-pill"
-                      data-code="<?=h($c['code'])?>"
-                      data-type="<?=h($c['type'])?>"
-                      data-value="<?=h($c['value'])?>"
-                      data-min="<?=h($c['min_order_total'])?>"
-                      data-applies="<?=h($c['applies_to'])?>"
-                      data-stack="<?= (int)$c['allow_stack_with_discount_price'] ?>">
-                <span class="code"><?=h($c['code'])?></span>
-                <span class="val">ลด <?=h($cap)?></span>
-                <span class="val">คงเหลือ: <?=h($left)?></span>
-              </button>
+<button type="button"
+        class="<?= $btnClass ?>"
+        data-code="<?=h($c['code'])?>"
+        data-type="<?=h($c['type'])?>"
+        data-value="<?=h($c['value'])?>"
+        data-min="<?=h($c['min_order_total'])?>"
+        data-applies="<?=h($c['applies_to'])?>"
+        data-stack="<?= (int)$c['allow_stack_with_discount_price'] ?>"
+        data-limit="<?= (int)$c['uses_limit'] ?>"
+        data-per="<?= (int)$c['per_user_limit'] ?>"
+        data-used-total="<?= (int)$c['used_total'] ?>"
+        data-used-me="<?= (int)$c['used_by_me'] ?>"
+        data-status="<?= h($c['status']) ?>"
+        data-starts="<?= h($c['starts_at'] ?? '') ?>"
+        data-ends="<?= h($c['ends_at'] ?? '') ?>"
+        <?= $exhausted ? 'aria-disabled="true" tabindex="-1"' : '' ?>>
+  <span class="code"><?=h($c['code'])?></span>
+  <span class="val">ลด <?=h($cap)?></span>
+  <span class="val"><?=h($limitText)?></span>
+  <span class="val">คงเหลือ (ฉัน): <?=h($leftMeTxt)?></span>
+  <span class="val">คงเหลือ (รวม): <?=h($leftTotalTxt)?></span>
+  <?php if ($exhausted): ?><span class="val text-danger fw-semibold">หมดสิทธิ์</span><?php endif; ?>
+</button>
               <?php endforeach; ?>
             </div>
           <?php endif; ?>
@@ -557,57 +630,120 @@ function calcGrand(){
   qs('#client_grand')?.setAttribute('value', fmt(grand));
 }
 
-/** ===== Preview coupon ด้านหน้า (เซิร์ฟเวอร์จะตรวจยืนยันอีกครั้ง) ===== */
+/** ===== Helpers: window/limits ===== */
+function withinWindow(starts, ends){
+  // รับรูปแบบ 'YYYY-MM-DD HH:MM:SS' หรือ null/""
+  const now = new Date();
+  const s = starts ? new Date(starts.replace(' ','T')) : null;
+  const e = ends   ? new Date(ends.replace(' ','T'))   : null;
+  if (s && now < s) return {ok:false, reason:'คูปองนี้ยังไม่เริ่มใช้งาน'};
+  if (e && now > e) return {ok:false, reason:'คูปองนี้หมดอายุแล้ว'};
+  return {ok:true, reason:''};
+}
+
+function checkLimit(c){
+  const limit = Number(c.uses_limit ?? c.limit ?? 0);
+  const per   = Number(c.per_user_limit ?? c.per ?? 0);
+  const usedT = Number(c.used_total ?? c.usedTotal ?? 0);
+  const usedM = Number(c.used_by_me ?? c.usedMe ?? 0);
+  if (limit>0 && usedT >= limit) return {ok:false, reason:'คูปองนี้มีผู้ใช้ครบแล้ว'};
+  if (per>0 && usedM >= per)     return {ok:false, reason:'คุณใช้คูปองนี้ครบแล้ว'};
+  return {ok:true, reason:''};
+}
+
+/** ===== Compute discount (ฝั่ง client) ===== */
 function computeDiscount(total, c) {
-  const min = Number(c.min_order_total||0);
+  const status = String(c.status||'active').toLowerCase();
+  if (status !== 'active'){ return {ok:false, amount:0, reason:'คูปองนี้ถูกปิดใช้งาน'}; }
+
+  const win = withinWindow(c.starts_at||c.starts||'', c.ends_at||c.ends||'');
+  if (!win.ok) return {ok:false, amount:0, reason:win.reason};
+
+  const lim = checkLimit(c);
+  if (!lim.ok) return {ok:false, amount:0, reason:lim.reason};
+
+  const min = Number(c.min_order_total||c.min||0);
   if (min > 0 && total < min) return {ok:false, amount:0, reason:`ยอดสั่งซื้อไม่ถึงขั้นต่ำ ${fmt(min)} ฿`};
+
   const applies = String(c.applies_to||'all');
   if (applies !== 'all' && applies !== 'products') return {ok:false, amount:0, reason:'คูปองนี้จำกัดการใช้งาน'};
+
   let amt = 0;
   if (String(c.type) === 'percent') {
     const rate = Number(c.value||0)/100;
     amt = Math.max(0, total * rate);
+    if (Number(c.max_discount||0) > 0) {
+      amt = Math.min(amt, Number(c.max_discount));
+    }
   } else {
     amt = Math.min(Number(c.value||0), total);
   }
-  if (amt <= 0) return {ok:false, amount:0, reason:'ส่วนลดเป็น 0'};
+  if (amt <= 0) return {ok:false, amount:0, reason:'คูปองนี้ไม่ทำให้ยอดลดลง'};
   return {ok:true, amount:amt, reason:''};
 }
 
-function applyCouponObj(c) {
+function showCouponNote(ok, html){
   const note = document.getElementById('couponNote');
+  note.style.display = 'block';
+  note.className = 'small ' + (ok ? 'text-success' : 'text-danger') + ' mt-1';
+  note.innerHTML = html;
+}
+
+function applyCouponObj(c) {
   const input = document.getElementById('couponInput');
   const codeHidden = document.getElementById('coupon_code');
 
   const r = computeDiscount(subtotal, c);
   if (!r.ok) {
     discount = 0.00;
-    note.style.display = 'block';
-    note.className = 'small text-danger mt-1';
-    note.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ใช้คูปอง <b>${c.code}</b> ไม่ได้: ${r.reason}`;
+    showCouponNote(false, `<i class="bi bi-exclamation-triangle"></i> ใช้คูปอง <b>${c.code}</b> ไม่ได้: ${r.reason}`);
     codeHidden.value = '';
   } else {
     discount = r.amount;
-    note.style.display = 'block';
-    note.className = 'small text-success mt-1';
     const cap = (c.type==='percent') ? `${Number(c.value)}%` : `${fmt(c.value)} ฿`;
     const minCap = Number(c.min_order_total||0)>0 ? ` (ขั้นต่ำ ${fmt(c.min_order_total)} ฿)` : '';
-    note.innerHTML = `<i class="bi bi-check2-circle"></i> ใช้คูปอง <b>${c.code}</b> แล้ว: ลด <b>${fmt(discount)} ฿</b> ${minCap}`;
+    showCouponNote(true, `<i class="bi bi-check2-circle"></i> ใช้คูปอง <b>${c.code}</b> แล้ว: ลด <b>${fmt(discount)} ฿</b> ${minCap}`);
     input && (input.value = c.code);
     codeHidden.value = c.code;
   }
   calcGrand();
 }
 
+// กดปุ่ม "ใช้คูปอง"
 document.getElementById('applyCouponBtn')?.addEventListener('click', ()=>{
   const code = (document.getElementById('couponInput')?.value || '').trim();
   if (!code) return;
-  const c = coupons.find(x => String(x.code).toUpperCase() === code.toUpperCase());
-  if (c) { applyCouponObj(c); return; }
-  // ไม่พบในรายการ — preview แบบ fixed=0 (เซิร์ฟเวอร์จะตรวจจริง)
-  applyCouponObj({code,type:'fixed',value:0, min_order_total:0, applies_to:'all'});
+
+  // หาในรายการคูปองของฉันก่อน
+  const cSrc = coupons.find(x => String(x.code).toUpperCase() === code.toUpperCase());
+  if (cSrc) {
+    const c = {
+      code:  cSrc.code,
+      type:  cSrc.type,
+      value: Number(cSrc.value||0),
+      min_order_total: Number(cSrc.min_order_total||0),
+      applies_to: cSrc.applies_to||'all',
+      allow_stack_with_discount_price: Number(cSrc.allow_stack_with_discount_price||0),
+      uses_limit: Number(cSrc.uses_limit||0),
+      per_user_limit: Number(cSrc.per_user_limit||0),
+      used_total: Number(cSrc.used_total||0),
+      used_by_me: Number(cSrc.used_by_me||0),
+      status: cSrc.status||'active',
+      starts_at: cSrc.starts_at||'',
+      ends_at: cSrc.ends_at||''
+    };
+    applyCouponObj(c);
+    return;
+  }
+
+  // ไม่อยู่ในลิสต์ (เช่นหมดสิทธิ์/เลิกใช้) -> แจ้งเตือนทันที
+  discount = 0.00;
+  document.getElementById('coupon_code').value = '';
+  showCouponNote(false, `<i class="bi bi-exclamation-triangle"></i> ไม่พบคูปองนี้ หรือคูปองนี้หมดสิทธิ์/หมดอายุแล้ว`);
+  calcGrand();
 });
 
+// คลิกปุ่มคูปองจากลิสต์
 document.getElementById('myCoupons')?.addEventListener('click', (e)=>{
   const pill = e.target.closest('.coupon-pill');
   if (!pill) return;
@@ -617,7 +753,14 @@ document.getElementById('myCoupons')?.addEventListener('click', (e)=>{
     value: Number(pill.dataset.value||0),
     min_order_total: Number(pill.dataset.min||0),
     applies_to: pill.dataset.applies||'all',
-    allow_stack_with_discount_price: Number(pill.dataset.stack||0)
+    allow_stack_with_discount_price: Number(pill.dataset.stack||0),
+    uses_limit: Number(pill.dataset.limit||0),
+    per_user_limit: Number(pill.dataset.per||0),
+    used_total: Number(pill.dataset.usedTotal||0),
+    used_by_me: Number(pill.dataset.usedMe||0),
+    status: pill.dataset.status||'active',
+    starts_at: pill.dataset.starts||'',
+    ends_at: pill.dataset.ends||''
   };
   applyCouponObj(c);
 });

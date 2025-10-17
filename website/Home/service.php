@@ -1,5 +1,5 @@
-<?php 
-// Home/service.php
+<?php  
+// Home/service.php  (pretty + urgent surcharge 500)
 if (session_status()===PHP_SESSION_NONE){ session_start(); }
 require __DIR__.'/includes/db.php';
 
@@ -7,16 +7,19 @@ function h($s){ return htmlspecialchars($s??'',ENT_QUOTES,'UTF-8'); }
 $loggedIn = isset($_SESSION['user_id']);
 $userId   = $loggedIn ? (int)$_SESSION['user_id'] : null;
 
-// preload ชื่อผู้ใช้ (ไว้ทักทาย)
 $username = '';
 if ($loggedIn) {
-  if ($st=$conn->prepare("SELECT username FROM users WHERE id=?")) {
+  if ($st=$conn->prepare("SELECT full_name FROM users WHERE id=?")) {
     $st->bind_param("i",$userId); $st->execute();
-    $username = $st->get_result()->fetch_assoc()['username'] ?? '';
+    $username = $st->get_result()->fetch_assoc()['full_name'] ?? '';
     $st->close();
   }
 }
-// สถานะงานซ่อม
+
+/* ===== ค่าบริการด่วน ===== */
+$URGENT_SURCHARGE = 500.00;
+
+/* ===== ตัวเลือกมาตรฐาน ===== */
 $gradeChoices = [
   'used'     => ['label'=>'มือสอง',   'desc'=>'อะไหล่มือสองแท้ สภาพดี ตรวจสภาพก่อนติดตั้ง',          'add'=>0],
   'standard' => ['label'=>'ปานกลาง',  'desc'=>'อะไหล่เทียบคุณภาพดี (รับประกันร้าน)',                   'add'=>400],
@@ -28,7 +31,6 @@ $warrantyChoices = [
    6 => ['label'=>'+6 เดือน',                         'months'=>6,  'add'=>500],
   12 => ['label'=>'+12 เดือน',                        'months'=>12, 'add'=>800],
 ];
-
 ?>
 <!doctype html>
 <html lang="th">
@@ -60,6 +62,9 @@ $warrantyChoices = [
     .preview img{width:100%; height:110px; object-fit:cover; border-radius:10px; border:1px solid var(--border); background:#fff}
     .chip{display:inline-flex; align-items:center; gap:.4rem; background:var(--chip); border:1px solid var(--chip-b); padding:.3rem .7rem; border-radius:999px; font-weight:600}
     .note{background:var(--soft); border:1px solid #e5ecf6; border-radius:12px; padding:10px 12px}
+    .price-sum{display:flex; align-items:center; justify-content:space-between}
+    .sum-line{display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .sum-line .k{color:var(--muted)}
   </style>
 </head>
 <body>
@@ -86,7 +91,7 @@ $warrantyChoices = [
       <div class="col-lg-5">
         <div class="note">
           <?php if($loggedIn): ?>
-            <div class="fw-semibold">สวัสดี, @<?=h($username)?></div>
+            <div class="fw-semibold">สวัสดี, <?=h($username)?></div>
             <div class="small muted">คุณสามารถส่งคำขอซ่อมและเทิร์นสินค้าได้ทันที</div>
           <?php else: ?>
             <div class="fw-semibold">ยังไม่ได้เข้าสู่ระบบ</div>
@@ -139,68 +144,77 @@ $warrantyChoices = [
           <input type="date" name="desired_date" class="form-control" <?= $loggedIn?'':'disabled' ?>>
         </div>
         <div class="col-md-6">
-          <label class="form-label">ความเร่งด่วน</label>
-          <select name="urgency" class="form-select" <?= $loggedIn?'':'disabled' ?>>
+          <label class="form-label">ความเร่งด่วน <span class="text-danger small">(เลือกด่วนมีค่าบริการเพิ่ม <?= number_format($URGENT_SURCHARGE,0) ?> ฿)</span></label>
+          <select name="urgency" id="urgencySelect" class="form-select" <?= $loggedIn?'':'disabled' ?>>
             <option value="normal">ปกติ</option>
-            <option value="urgent">ด่วน</option>
+            <option value="urgent">ด่วน (+<?= number_format($URGENT_SURCHARGE,0) ?>฿)</option>
           </select>
+          <div class="form-text">งานด่วนจะจัดคิวให้เร็วเป็นพิเศษ</div>
         </div>
+
         <!-- เกรดวัสดุที่ต้องการ -->
-<div class="col-12">
-  <label class="form-label">เลือกเกรดวัสดุ</label>
-  <div class="row g-2">
-    <?php foreach($gradeChoices as $key=>$g): ?>
-      <div class="col-md-4">
-        <label class="border rounded-3 p-3 d-block h-100">
-          <div class="form-check">
-            <input class="form-check-input grade-opt" type="radio"
-                   name="parts_grade" value="<?= $key ?>"
-                   data-add="<?= (float)$g['add'] ?>"
-                   <?= $key==='standard'?'checked':'' ?> <?= $loggedIn?'':'disabled' ?>>
-            <span class="fw-semibold ms-2"><?= h($g['label']) ?></span>
+        <div class="col-12">
+          <label class="form-label">เลือกเกรดวัสดุ</label>
+          <div class="row g-2">
+            <?php foreach($gradeChoices as $key=>$g): ?>
+              <div class="col-md-4">
+                <label class="border rounded-3 p-3 d-block h-100">
+                  <div class="form-check">
+                    <input class="form-check-input grade-opt" type="radio"
+                           name="parts_grade" value="<?= $key ?>"
+                           data-add="<?= (float)$g['add'] ?>"
+                           <?= $key==='standard'?'checked':'' ?> <?= $loggedIn?'':'disabled' ?>>
+                    <span class="fw-semibold ms-2"><?= h($g['label']) ?></span>
+                  </div>
+                  <div class="small text-muted mt-1"><?= h($g['desc']) ?></div>
+                  <div class="mt-2 fw-semibold">+<?= number_format((float)$g['add'],2) ?> ฿</div>
+                </label>
+              </div>
+            <?php endforeach; ?>
           </div>
-          <div class="small text-muted mt-1"><?= h($g['desc']) ?></div>
-          <div class="mt-2 fw-semibold">+<?= number_format((float)$g['add'],2) ?> ฿</div>
-        </label>
-      </div>
-    <?php endforeach; ?>
-  </div>
-</div>
+        </div>
 
-<!-- ประกันหลังซ่อม (เพิ่มได้) -->
-<div class="col-12">
-  <label class="form-label">ประกันหลังซ่อม (เพิ่มได้)</label>
-  <div class="row g-2">
-    <?php foreach($warrantyChoices as $m=>$w): ?>
-      <div class="col-md-3">
-        <label class="border rounded-3 p-3 d-block h-100">
-          <div class="form-check">
-            <input class="form-check-input warranty-opt" type="radio"
-                   name="ext_warranty_months" value="<?= (int)$m ?>"
-                   data-add="<?= (float)$w['add'] ?>"
-                   <?= $m===0?'checked':'' ?> <?= $loggedIn?'':'disabled' ?>>
-            <span class="ms-2"><?= h($w['label']) ?></span>
+        <!-- ประกันหลังซ่อม (เพิ่มได้) -->
+        <div class="col-12">
+          <label class="form-label">ประกันหลังซ่อม (เพิ่มได้)</label>
+          <div class="row g-2">
+            <?php foreach($warrantyChoices as $m=>$w): ?>
+              <div class="col-md-3">
+                <label class="border rounded-3 p-3 d-block h-100">
+                  <div class="form-check">
+                    <input class="form-check-input warranty-opt" type="radio"
+                           name="ext_warranty_months" value="<?= (int)$m ?>"
+                           data-add="<?= (float)$w['add'] ?>"
+                           <?= $m===0?'checked':'' ?> <?= $loggedIn?'':'disabled' ?>>
+                    <span class="ms-2"><?= h($w['label']) ?></span>
+                  </div>
+                  <div class="mt-2 fw-semibold">+<?= number_format((float)$w['add'],2) ?> ฿</div>
+                </label>
+              </div>
+            <?php endforeach; ?>
           </div>
-          <div class="mt-2 fw-semibold">+<?= number_format((float)$w['add'],2) ?> ฿</div>
-        </label>
-      </div>
-    <?php endforeach; ?>
-  </div>
-  <div class="form-text">ร้านมีประกันมาตรฐานฟรี 1 เดือนอยู่แล้ว เลือกเพิ่มได้ถ้าต้องการความอุ่นใจ</div>
-</div>
+          <div class="form-text">ร้านมีประกันมาตรฐานฟรี 1 เดือนอยู่แล้ว เลือกเพิ่มได้ถ้าต้องการความอุ่นใจ</div>
+        </div>
 
-<!-- สรุปค่าส่วนเพิ่มจากตัวเลือก -->
-<div class="col-12">
-  <div class="alert alert-secondary d-flex justify-content-between align-items-center">
-    <div><i class="bi bi-calculator"></i> ค่าส่วนเพิ่มจากตัวเลือก</div>
-    <div class="fw-bold" id="addonsTotal">+0.00 ฿</div>
-  </div>
-</div>
+        <!-- สรุปค่าส่วนเพิ่มจากตัวเลือก -->
+        <div class="col-12">
+          <div class="alert alert-secondary">
+            <div class="sum-line"><span class="k">+ เกรดอะไหล่</span><span id="sumGrade">+0.00 ฿</span></div>
+            <div class="sum-line"><span class="k">+ ประกันเพิ่ม</span><span id="sumWarranty">+0.00 ฿</span></div>
+            <div class="sum-line"><span class="k">+ บริการด่วน</span><span id="sumUrgent">+0.00 ฿</span></div>
+            <hr class="my-2">
+            <div class="price-sum">
+              <div><i class="bi bi-calculator"></i> ค่าส่วนเพิ่มรวม</div>
+              <div class="fw-bold" id="addonsTotal">+0.00 ฿</div>
+            </div>
+          </div>
+        </div>
 
-<!-- ค่าที่ต้องส่งไปบันทึก -->
-<input type="hidden" name="parts_grade_surcharge" id="parts_grade_surcharge" value="0">
-<input type="hidden" name="ext_warranty_price"    id="ext_warranty_price"    value="0">
-<input type="hidden" name="estimate_total"         id="estimate_total"         value="0">
+        <!-- hidden สำหรับบันทึก -->
+        <input type="hidden" name="parts_grade_surcharge" id="parts_grade_surcharge" value="0">
+        <input type="hidden" name="ext_warranty_price"    id="ext_warranty_price"    value="0">
+        <input type="hidden" name="urgent_fee"            id="urgent_fee"            value="0">
+        <input type="hidden" name="estimate_total"         id="estimate_total"         value="0">
 
         <div class="col-12">
           <label class="form-label">อธิบายอาการ/ปัญหา</label>
@@ -279,16 +293,12 @@ $warrantyChoices = [
               </select>
             </div>
 
-            <!-- แสดงเมื่อเลือก เทิร์นเป็นส่วนลดซื้อใหม่ -->
             <div id="buyNewWrap" class="row g-3 d-none">
               <div class="col-md-6">
                 <label class="form-label">ราคาเสนอ (บาท)</label>
                 <input type="number" step="0.01" min="0" name="offer_price" id="offerPrice" class="form-control" placeholder="เช่น 1500" <?= $loggedIn?'':'disabled' ?>>
               </div>
-              <div class="col-md-6">
-                <label class="form-label">รหัสสินค้าที่เลือก</label>
-                <input type="number" step="1" min="1" name="selected_product_id" id="selectedProductId" class="form-control" placeholder="เช่น PRD123" <?= $loggedIn?'':'disabled' ?>>
-              </div>
+              
             </div>
 
             <div class="col-12">
@@ -343,34 +353,46 @@ $warrantyChoices = [
 <?php include __DIR__.'/assets/html/footer.html'; ?>
 
 <script>
-
 (function(){
   const $ = (s,all=false)=> all?document.querySelectorAll(s):document.querySelector(s);
   const fmt = n => (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' ฿';
+  const URGENT = <?= json_encode($URGENT_SURCHARGE) ?>;
+
   function recalc(){
     const gSel = $('.grade-opt:checked');
     const wSel = $('.warranty-opt:checked');
+    const uSel = $('#urgencySelect');
+
     const gAdd = gSel ? parseFloat(gSel.dataset.add||'0') : 0;
     const wAdd = wSel ? parseFloat(wSel.dataset.add||'0') : 0;
-    const total = gAdd + wAdd;
+    const uAdd = (uSel && uSel.value==='urgent') ? URGENT : 0;
+
+    // แสดงแยกบรรทัด
+    $('#sumGrade').textContent   = '+'+fmt(gAdd);
+    $('#sumWarranty').textContent= '+'+fmt(wAdd);
+    $('#sumUrgent').textContent  = '+'+fmt(uAdd);
+
+    const total = gAdd + wAdd + uAdd;
     $('#addonsTotal').textContent = '+'+fmt(total);
+
+    // hidden สำหรับบันทึก
     $('#parts_grade_surcharge').value = gAdd.toFixed(2);
-    $('#ext_warranty_price').value  = wAdd.toFixed(2);
-    $('#estimate_total').value      = total.toFixed(2);
+    $('#ext_warranty_price').value    = wAdd.toFixed(2);
+    $('#urgent_fee').value            = uAdd.toFixed(2);
+    $('#estimate_total').value        = total.toFixed(2);
   }
+
   document.addEventListener('change', (e)=>{
-    if(e.target.classList.contains('grade-opt') || e.target.classList.contains('warranty-opt')) recalc();
+    if (e.target.matches('.grade-opt, .warranty-opt, #urgencySelect')) recalc();
   });
   recalc();
 })();
 
-/* ---------- Dropzone (งานซ่อม) : แก้ id ให้ตรง + สร้าง <img> พรีวิวให้อัตโนมัติ ---------- */
+/* ---------- Dropzone (งานซ่อม) ---------- */
 function wireSingleDrop(dropId, inputId, previewId){
   const dz = document.getElementById(dropId);
   const inp = document.getElementById(inputId);
   const pv  = document.getElementById(previewId);
-
-  // ถ้ายังไม่ได้ล็อกอินหรือไม่มี element ก็ไม่ต้องทำอะไร
   if(!dz || !inp || dz.classList.contains('disabled') || inp.disabled) return;
 
   let imgEl = null;
@@ -439,7 +461,7 @@ wireSingleDrop('drop-repair','file-repair','preview-repair');
   }
 })();
 
-/* ---------- แสดงฟิลด์ "ราคาเสนอ" + "รหัสสินค้าที่เลือก" เฉพาะตอนเลือก buy_new ---------- */
+/* ---------- Toggle ฟิลด์ buy_new ---------- */
 (function(){
   const logged = <?= $loggedIn ? 'true' : 'false' ?>;
   const needSel = document.getElementById('needSelect');

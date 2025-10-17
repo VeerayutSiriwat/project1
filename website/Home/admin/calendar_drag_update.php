@@ -1,3 +1,4 @@
+
 <?php
 // Home/admin/calendar_drag_update.php
 if (session_status()===PHP_SESSION_NONE){ session_start(); }
@@ -39,8 +40,8 @@ try{
           $st->bind_param('si', $start, $id);
         }
       } else {
-        // fallback schema เก่า
-        $st = $conn->prepare("UPDATE service_tickets SET scheduled_at=?, updated_at=NOW() WHERE id=?");
+        // fallback schema เก่า: ตั้ง schedule_status='confirmed' ด้วย
+        $st = $conn->prepare("UPDATE service_tickets SET scheduled_at=?, schedule_status='confirmed', updated_at=NOW() WHERE id=?");
         $st->bind_param('si', $start, $id);
       }
       $st->execute(); $st->close();
@@ -63,14 +64,15 @@ try{
 
     case 'tradein':
       // เทิร์น: ใช้ appointment_start/end หรือ scheduled_at แล้วแต่ schema
-      $trStart = $conn->query("SHOW COLUMNS FROM tradein_requests LIKE 'appointment_start'")->num_rows>0 ? 'appointment_start' : 'scheduled_at';
+      $trStartColIsAppointment = $conn->query("SHOW COLUMNS FROM tradein_requests LIKE 'appointment_start'")->num_rows>0;
+      $trStart = $trStartColIsAppointment ? 'appointment_start' : ($conn->query("SHOW COLUMNS FROM tradein_requests LIKE 'scheduled_at'")->num_rows>0 ? 'scheduled_at' : null);
       $trEnd   = $conn->query("SHOW COLUMNS FROM tradein_requests LIKE 'appointment_end'")->num_rows>0 ? 'appointment_end' : null;
       if ($trStart) {
         if ($trEnd) {
-          $st = $conn->prepare("UPDATE tradein_requests SET $trStart=?, $trEnd=?, updated_at=NOW() WHERE id=?");
+          $st = $conn->prepare("UPDATE tradein_requests SET $trStart=?, $trEnd=?, schedule_status='confirmed', updated_at=NOW() WHERE id=?");
           $st->bind_param('ssi', $start, $end, $id);
         } else {
-          $st = $conn->prepare("UPDATE tradein_requests SET $trStart=?, updated_at=NOW() WHERE id=?");
+          $st = $conn->prepare("UPDATE tradein_requests SET $trStart=?, schedule_status='confirmed', updated_at=NOW() WHERE id=?");
           $st->bind_param('si', $start, $id);
         }
         $st->execute(); $st->close();
@@ -84,3 +86,5 @@ try{
 }catch(Throwable $e){
   echo json_encode(['ok'=>false,'error'=>'exception']); exit;
 }
+?>
+// ...existing code...

@@ -70,7 +70,7 @@ if($type==='repair'){
     $logs=$st->get_result()->fetch_all(MYSQLI_ASSOC); $st->close();
   }
   $map=[
-    'queue'=>'เข้าคิว','confirm'=>'ยืนยันคิว','checking'=>'ตรวจเช็ค',
+    'queued'=>'เข้าคิว','confirm'=>'ยืนยันคิว','checking'=>'ตรวจเช็ค',
     'waiting_parts'=>'รออะไหล่','repairing'=>'กำลังซ่อม','done'=>'เสร็จพร้อมรับ','cancelled'=>'ยกเลิก'
   ];
 
@@ -121,7 +121,7 @@ if($type==='repair'){
     $logs=$st->get_result()->fetch_all(MYSQLI_ASSOC); $st->close();
   }
   $map=[
-    'submitted'=>'ส่งคำขอแล้ว','reviewing'=>'กำลังประเมิน','offered'=>'มีราคาเสนอ',
+    'submitted'=>'ส่งคำขอแล้ว','review'=>'กำลังประเมิน','offered'=>'มีราคาเสนอ',
     'accepted'=>'ยอมรับข้อเสนอ','rejected'=>'ปฏิเสธข้อเสนอ','cancelled'=>'ยกเลิก','completed'=>'เสร็จสิ้น'
   ];
 
@@ -361,7 +361,6 @@ $APPT_TEXT  = ['none'=>'—','pending'=>'รอยืนยัน','confirmed'=>
                 <div class="col-md-6"><div class="k">สภาพ</div><div class="v"><?=h($req['device_condition'])?></div></div>
                 <div class="col-md-6"><div class="k">ความต้องการ</div><div class="v"><?=h($req['need'])?></div></div>
                 <div class="col-md-6"><div class="k">ราคาเสนอ</div><div class="v"><?= $req['offer_price']!==null ? number_format((float)$req['offer_price'],2).' ฿' : '-' ?></div></div>
-                <div class="col-md-6"><div class="k">รหัสสินค้าที่เลือก</div><div class="v"><?=h($req['selected_product_id'] ?: '-')?></div></div>
               </div>
 
               <?php

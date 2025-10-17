@@ -50,34 +50,69 @@ $rows = $st->get_result()->fetch_all(MYSQLI_ASSOC);
 $st->close();
 
 /* ----- โหลดจำนวนครั้งที่ผู้ใช้เคยใช้ต่อคูปอง (ถ้ามีตาราง coupon_usages) ----- */
-$userUsed = [];
+$userUsed = [];   // นับที่ผู้ใช้คนนี้
+$totalUsed = [];  // นับรวมทุกผู้ใช้
+
 if (table_exists($conn,'coupon_usages') && !empty($rows)) {
   $ids = array_map(fn($r)=>(int)$r['id'], $rows);
   $ids = implode(',', array_map('intval', $ids));
   if ($ids !== '') {
-    $q = $conn->query("SELECT coupon_id, COUNT(*) c FROM coupon_usages WHERE user_id={$uid} AND coupon_id IN ($ids) GROUP BY coupon_id");
-    while($a=$q->fetch_assoc()){ $userUsed[(int)$a['coupon_id']] = (int)$a['c']; }
+    // ใช้โดย "ฉัน"
+    $q1 = $conn->query("
+      SELECT coupon_id, COUNT(*) c
+      FROM coupon_usages
+      WHERE user_id={$uid} AND coupon_id IN ($ids)
+      GROUP BY coupon_id
+    ");
+    while($a=$q1->fetch_assoc()){
+      $userUsed[(int)$a['coupon_id']] = (int)$a['c'];
+    }
+    // ใช้รวมทุกคน
+    $q2 = $conn->query("
+      SELECT coupon_id, COUNT(*) c
+      FROM coupon_usages
+      WHERE coupon_id IN ($ids)
+      GROUP BY coupon_id
+    ");
+    while($a=$q2->fetch_assoc()){
+      $totalUsed[(int)$a['coupon_id']] = (int)$a['c'];
+    }
   }
 }
 
-/* ----- จัดหมวดหมู่: ใช้ได้ / หมดอายุ / ใช้ครบ ----- */
-$now = date('Y-m-d H:i:s');
-$usable = []; $expired = []; $exhausted = [];
+/* ----- จัดหมวดหมู่: ใช้ได้ / ใช้งานแล้ว / ใช้ครบ / หมดอายุ ----- */
+$now = time();
+$usable = [];        // ใช้ได้ตอนนี้
+$usedByMe = [];      // ฉันเคยใช้แล้วอย่างน้อย 1 ครั้ง (ยังไม่หมดโควตา/ยังไม่หมดอายุ)
+$exhausted = [];     // โควต้าครบแล้ว (รวม/ต่อคน อย่างใดอย่างหนึ่ง)
+$expired = [];       // หมดอายุ หรือสถานะไม่ active
+
 foreach ($rows as $c) {
-  $cid = (int)$c['id'];
-  $myUsed = (int)($userUsed[$cid] ?? 0);
+  $cid          = (int)$c['id'];
+  $active       = (strtolower($c['status'] ?? '') === 'active');
   $perUserLimit = (int)($c['per_user_limit'] ?? 0);
   $usesLimit    = (int)($c['uses_limit'] ?? 0);
-  $usedCount    = (int)($c['used_count'] ?? 0);
-  $active = (strtolower($c['status']) === 'active');
+  $usedCountCol = (int)($c['used_count'] ?? 0); // ถ้ามีคอลัมน์นี้
+  $myUsed       = (int)($userUsed[$cid]  ?? 0);
+  $allUsed      = (int)($totalUsed[$cid] ?? $usedCountCol);
 
-  $isExpired = (!empty($c['ends_at']) && $c['ends_at'] < $now);
-  $hitTotal  = ($usesLimit>0 && $usedCount >= $usesLimit);
-  $hitUser   = ($perUserLimit>0 && $myUsed   >= $perUserLimit);
+  // หมดอายุ?
+  $endTs = !empty($c['ends_at']) ? strtotime($c['ends_at']) : null;
+  $isExpired = (!$active) || ($endTs && $endTs < $now);
 
-  if ($isExpired || !$active)       { $expired[]   = $c; }
-  elseif ($hitTotal || $hitUser)    { $exhausted[] = $c; }
-  else                              { $usable[]    = $c; }
+  // ชนโควตา?
+  $hitTotal = ($usesLimit    > 0 && $allUsed >= $usesLimit);
+  $hitUser  = ($perUserLimit > 0 && $myUsed  >= $perUserLimit);
+
+  if ($isExpired) {
+    $expired[] = $c;
+  } elseif ($hitTotal || $hitUser) {
+    $exhausted[] = $c;
+  } elseif ($myUsed > 0) {
+    $usedByMe[] = $c;
+  } else {
+    $usable[] = $c;
+  }
 }
 
 include __DIR__.'/includes/header.php';
@@ -122,6 +157,48 @@ include __DIR__.'/includes/header.php';
   .empty .emoji{ font-size:42px; }
   .fade-in{ animation:fade .25s ease; } @keyframes fade{ from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:translateY(0)} }
   .small-muted{ color:var(--muted); font-size:.85rem;} .pointer{ cursor:pointer; }
+  .ticket .band{ position:relative; z-index:2; }
+.ticket .band .code{ position:relative; z-index:3; }
+.ribbon{ pointer-events:none; z-index:1; right:-36px; top:8px; }
+
+/* 2) กันริบบอนบังเนื้อหา โดยเพิ่มพื้นที่ด้านขวาเล็กน้อยบนแถบหัว */
+.ticket .band{ padding-right:72px; }
+
+/* 3) จัดแถวหัวคูปองให้ยืดหยุ่น + อยู่บรรทัดเดียวเมื่อพื้นที่พอ
+      และแตกบรรทัดอย่างสวยงามเมื่อจอแคบ */
+.ticket .band{
+  display:flex; align-items:flex-start; justify-content:space-between;
+  gap:8px 12px; flex-wrap:wrap;
+}
+.ticket .band .value{
+  flex:1 1 260px; min-width:0; line-height:1.1;
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+}
+.ticket .band .code{
+  flex:0 0 auto;
+  white-space:nowrap; /* ไม่ตัดรหัส */
+  background:rgba(255,255,255,.18);
+  padding:6px 10px; border-radius:999px;
+}
+
+/* 4) ปรับชิป TR ให้สูงคงที่ ไม่ตกบรรทัดแปลก ๆ */
+.ticket .band .value .chip{
+  display:inline-flex; align-items:center; height:26px;
+  padding:4px 10px; line-height:1; white-space:nowrap;
+}
+
+/* 5) กันเนื้อหาแนวตั้งชนเส้นหยัก/รูกัดบัตร เมื่อหัวสูงขึ้น */
+.cut{ margin-top:0; }
+.ticket:before, .ticket:after{ top:66px; } /* เดิม 58px ถ้าหัวสูงขึ้นจะพอดีขึ้น */
+
+/* 6) จอเล็ก: วางรหัสลงบรรทัดใหม่อย่างตั้งใจ ไม่อึดอัด */
+@media (max-width: 480px){
+  .ticket .band{ padding-right:56px; }
+  .ticket .band .code{ width:100%; text-align:left; }
+}
+
+/* 7) เก็บดีเทลเล็ก ๆ ให้hoverชัดขึ้นแต่ไม่เปลี่ยนพฤติกรรม */
+.ticket .band .code:hover{ filter:brightness(1.06); }
 </style>
 
 <div class="container py-4">
@@ -140,7 +217,7 @@ include __DIR__.'/includes/header.php';
 
     <div class="coupon-tabs mt-3" role="tablist" aria-label="Coupon filters">
       <button class="coupon-tab active" data-target="#tab-usable" role="tab" aria-selected="true"><i class="bi bi-check2-circle me-1"></i> พร้อมใช้งาน (<?=count($usable)?>)</button>
-      <button class="coupon-tab" data-target="#tab-exhaust" role="tab" aria-selected="false"><i class="bi bi-graph-up-arrow me-1"></i> ใช้ครบแล้ว (<?=count($exhausted)?>)</button>
+      <button class="coupon-tab" data-target="#tab-exhaust" role="tab" aria-selected="false"><i class="bi bi-graph-up-arrow me-1"></i> ใช้ครบตามเงื่อนไขแล้ว (<?=count($exhausted)?>)</button>
       <button class="coupon-tab" data-target="#tab-expired" role="tab" aria-selected="false"><i class="bi bi-x-circle me-1"></i> หมดอายุ/ปิด (<?=count($expired)?>)</button>
     </div>
 

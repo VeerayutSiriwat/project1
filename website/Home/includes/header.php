@@ -10,12 +10,12 @@ if (!function_exists('h')) {
 $isLoggedIn = isset($_SESSION['user_id']);
 $cart_count = 0;
 $avatar_web = 'uploads/Default_pfp.svg.png';
-$navUser = ['username' => 'user'];
+$navUser = ['full_name' => 'user'];
 
 if ($isLoggedIn) {
   $uid = (int)$_SESSION['user_id'];
 
-  $st = $conn->prepare("SELECT username, avatar, profile_pic FROM users WHERE id=? LIMIT 1");
+  $st = $conn->prepare("SELECT username, full_name, avatar, profile_pic FROM users WHERE id=? LIMIT 1");
   $st->bind_param("i", $uid);
   $st->execute();
   $navUser = $st->get_result()->fetch_assoc() ?: $navUser;
@@ -146,6 +146,51 @@ if ($isLoggedIn) {
     /* ระยะห่างรวม */
     .navbar .navbar-brand span { letter-spacing:.2px }
     .navbar .btn { font-weight:700; }
+    /* ===== Header: compact by default, expand on hover (desktop only) ===== */
+.navbar.nav-glass{
+  padding-top: 4px; padding-bottom: 4px;
+  transition: padding .18s ease, box-shadow .18s ease, background .18s ease;
+  position: relative;
+}
+@media (min-width: 992px){
+  /* โซน hover เผื่อพื้นที่ด้านบนเล็กน้อย จะเลื่อนเมาส์ชิดขอบก็ยังกางได้ */
+  .navbar.nav-glass::after{
+    content:""; position:absolute; left:0; right:0; top:-12px; height:12px;
+  }
+
+  /* เมนูหลักซ่อนในสภาพ compact */
+  .navbar .main-links{
+    opacity: 0; transform: translateY(-6px);
+    pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+  }
+
+  /* ระยะห่าง/ความสูงให้ดูเป็น “แถบเล็ก” */
+  .navbar .navbar-brand{ padding-top:.1rem; padding-bottom:.1rem; }
+  .navbar .icon-btn{ height:38px; width:38px; }
+
+  /* ===== เมื่อ hover หรือโฟกัสใน nav ให้กางเมนูเต็ม ===== */
+  .navbar.nav-glass:hover,
+  .navbar.nav-glass:focus-within{
+    padding-top: 10px; padding-bottom: 10px;
+    box-shadow: 0 14px 40px rgba(2,6,23,.10);
+    background:
+      radial-gradient(900px 240px at 5% -30%, rgba(99,102,241,.18), transparent 60%),
+      radial-gradient(900px 240px at 105% -30%, rgba(14,165,233,.16), transparent 60%),
+      linear-gradient(180deg, #ffffffee, #ffffffd0);
+  }
+  .navbar.nav-glass:hover .main-links,
+  .navbar.nav-glass:focus-within .main-links{
+    opacity: 1; transform: translateY(0);
+    pointer-events: auto;
+  }
+}
+
+/* มือถือ/แท็บเล็ต: ใช้ collapse ปกติ ไม่เปลี่ยนพฤติกรรม */
+@media (max-width: 991.98px){
+  .navbar .main-links{ opacity:1; transform:none; pointer-events:auto; }
+}
+
   </style>
 </head>
 <body>
@@ -199,9 +244,9 @@ if ($isLoggedIn) {
             <a class="nav-link dropdown-toggle d-flex align-items-center" id="userDropdown" role="button"
                data-bs-toggle="dropdown" aria-expanded="false">
               <img src="<?= h($avatar_web) ?>" class="avatar-36" alt="avatar">
-              <span class="ms-2 fw-semibold"><?= h($navUser['username'] ?? 'user') ?></span>
+              <span class="ms-2 fw-semibold"><?= h($navUser['full_name'] ?? 'user') ?></span>
             </a>
-            <ul class="dropdown-menu dropdown-menu-end glass" aria-labelledby="userDropdown">
+            <ul class="dropdown-menu dropdown-menu-end glass main-links" aria-labelledby="userDropdown">
               <li><a class="dropdown-item" href="profile.php"><i class="bi bi-person me-2"></i>โปรไฟล์</a></li>
               <li><a class="dropdown-item" href="my_orders.php"><i class="bi bi-receipt me-2"></i>ประวัติการสั่งซื้อ</a></li>
               <li><a class="dropdown-item" href="service_my.php"><i class="bi bi-clipboard-check"></i> สถานะงานซ่อม/เทิร์น</a></li>

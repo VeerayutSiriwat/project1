@@ -19,10 +19,16 @@ function imgsrc_any($v){
   if (preg_match('~^https?://|^data:image/~',$v)) return $v;
   return (strpos($v,'/')!==false) ? '../'.$v : '../assets/img/'.$v;
 }
+/* ---------- helpers: แจ้งเตือน ---------- */
+function notify_user(mysqli $conn, int $userId, string $type, int $refId, string $title, string $message): void {
+  $st = $conn->prepare("INSERT INTO notifications (user_id,type,ref_id,title,message,is_read) VALUES (?,?,?,?,?,0)");
+  $st->bind_param("isiss", $userId, $type, $refId, $title, $message);
+  $st->execute(); $st->close();
+}
 
 $map = [
   'submitted'=>'ส่งคำขอแล้ว',
-  'reviewing'=>'กำลังประเมิน',
+  'review'=>'กำลังประเมิน',
   'offered'=>'มีราคาเสนอ',
   'accepted'=>'ยอมรับข้อเสนอ',
   'rejected'=>'ปฏิเสธข้อเสนอ',
@@ -30,7 +36,7 @@ $map = [
   'completed'=>'เสร็จสิ้น'
 ];
 $badge = [
-  'submitted'=>'secondary','reviewing'=>'info',
+  'submitted'=>'secondary','review'=>'info',
   'offered'=>'primary','accepted'=>'success',
   'rejected'=>'danger','cancelled'=>'danger','completed'=>'success'
 ];
@@ -66,6 +72,17 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
           if ($exists) { $prod = $pid; } // ไม่เจอ = คงไว้เป็น NULL
         }
       }
+    }
+    // แจ้งลูกค้าว่ามีข้อเสนอใหม่
+    $u = $conn->query("SELECT user_id, need FROM tradein_requests WHERE id={$id}")->fetch_assoc();
+    if ($u) {
+      $uid = (int)$u['user_id'];
+      $needTxt = ($u['need']==='buy_new') ? 'เทิร์นซื้อใหม่' : 'ขายรับเงินสด';
+      $bits = [];
+      if (!is_null($price)) $bits[] = 'ราคาเสนอ ~'.number_format($price,2).'฿';
+      if (!is_null($prod))  $bits[] = 'รหัสสินค้า #'.$prod;
+      $msg = $needTxt.($bits?(' • '.implode(' • ',$bits)):'');
+      notify_user($conn, $uid, 'tradein_status', $id, 'มีข้อเสนอเทิร์นใหม่', $msg);
     }
 
     // อัปเดต โดยจัดการ NULL ให้ถูกต้อง
@@ -163,6 +180,22 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
     if ($st=$conn->prepare("INSERT INTO tradein_status_logs (request_id, status, note, created_at) VALUES (?,?,?,NOW())")){
       $st->bind_param('iss', $id, $status, $note); $st->execute(); $st->close();
     }
+// แจ้งลูกค้าตามสถานะล่าสุด
+$row = $conn->query("SELECT user_id, need, offer_price FROM tradein_requests WHERE id={$id}")->fetch_assoc();
+if ($row) {
+  $uid = (int)$row['user_id'];
+  $needTxt = ($row['need']==='buy_new') ? 'เทิร์นซื้อใหม่' : 'ขายรับเงินสด';
+  $titleMap = [
+    'submitted'=>'รับคำขอแล้ว','review'=>'กำลังประเมิน','offered'=>'มีราคาเสนอ',
+    'accepted'=>'ยอมรับข้อเสนอแล้ว','rejected'=>'ปฏิเสธข้อเสนอ','cancelled'=>'คำขอถูกยกเลิก','completed'=>'ดำเนินการเสร็จสิ้น'
+  ];
+  $title = $titleMap[$status] ?? ('อัปเดตสถานะ: '.$status);
+  $bits = [];
+  if ($status==='offered' && $row['offer_price']!=='') $bits[] = 'ราคาเสนอ ~'.number_format((float)$row['offer_price'],2).'฿';
+  if ($note!=='') $bits[] = 'หมายเหตุ: '.$note;
+  $msg = $needTxt.($bits?(' • '.implode(' • ',$bits)):'');
+  notify_user($conn, $uid, 'tradein_status', $id, $title, $msg);
+}
 
     $_SESSION['flash'] = 'บันทึกสถานะเรียบร้อย';
     header("Location: tradein_detail.php?id=".$id); exit;

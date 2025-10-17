@@ -54,7 +54,7 @@ $ticketImages = parse_images($ticket['image_path'] ?? '');
 
 /* mapping สถานะหลักของใบงาน (ฝั่งตารางหลัก) */
 $statuses = [
-  'queue'=>'เข้าคิว','confirm'=>'ยืนยันคิว','checking'=>'ตรวจเช็ค','waiting_parts'=>'รออะไหล่',
+  'queued'=>'เข้าคิว','confirm'=>'ยืนยันคิว','checking'=>'ตรวจเช็ค','waiting_parts'=>'รออะไหล่',
   'repairing'=>'กำลังซ่อม','done'=>'เสร็จพร้อมรับ','cancelled'=>'ยกเลิก'
 ];
 
@@ -236,7 +236,7 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
       <div class="cardx p-3">
         <h6 class="fw-bold">อัปเดตสถานะ</h6>
         <div class="quick-btns d-flex flex-wrap gap-2 mb-2">
-          <button class="btn btn-outline-secondary btn-sm js-quick" data-status="queue">เข้าคิว</button>
+          <button class="btn btn-outline-secondary btn-sm js-quick" data-status="queued">เข้าคิว</button>
           <button class="btn btn-outline-success btn-sm js-quick" data-status="confirm">ยืนยันคิว</button>
           <button class="btn btn-outline-primary btn-sm js-quick" data-status="repairing">กำลังซ่อม</button>
           <button class="btn btn-outline-success btn-sm js-quick" data-status="done">เสร็จ</button>

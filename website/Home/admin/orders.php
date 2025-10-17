@@ -10,6 +10,12 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
 
 function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 function baht($n){ return number_format((float)$n,2); }
+function has_col(mysqli $c, string $t, string $col): bool {
+  $t = preg_replace('/[^a-zA-Z0-9_]/','',$t);
+  $col = preg_replace('/[^a-zA-Z0-9_]/','',$col);
+  $q = $c->query("SHOW COLUMNS FROM `$t` LIKE '$col'");
+  return $q && $q->num_rows>0;
+}
 
 // ===== Admin name (for topbar greeting) =====
 $admin_name = 'admin';
@@ -107,18 +113,24 @@ if ($page > $total_pages) { $page = $total_pages; $offset = ($page-1)*$per_page;
 /* =======================
    Query รายการตามตัวกรอง + แบ่งหน้า
 ======================= */
+$hasTotalCol = has_col($conn,'orders','total_price');
+$hasDiscCol  = has_col($conn,'orders','discount_total');
+
+$selectDiscount = $hasDiscCol ? "COALESCE(o.discount_total,0)" : "0";
+$selectPayable  = $hasTotalCol 
+  ? "COALESCE(o.total_price, 0)"
+  : "(COALESCE(SUM(oi.quantity * oi.unit_price),0) - {$selectDiscount})";
+
 $sql = "
   SELECT 
     o.id, o.user_id, o.status, o.payment_method, o.payment_status, o.created_at,
-    o.cancel_reason, o.cancel_requested_at,
-    o.slip_image, o.expires_at,
+    o.cancel_reason, o.cancel_requested_at, o.slip_image, o.expires_at,
     u.username,
     COALESCE(SUM(oi.quantity*oi.unit_price),0) AS total_amount,
-    GREATEST(
-      0,
-      TIMESTAMPDIFF(
-        SECOND,
-        NOW(),
+    {$selectDiscount} AS discount_total,
+    {$selectPayable}  AS payable_total,
+    GREATEST(0,
+      TIMESTAMPDIFF(SECOND, NOW(),
         COALESCE(o.expires_at, DATE_ADD(o.created_at, INTERVAL 15 MINUTE))
       )
     ) AS remaining_sec
@@ -247,13 +259,14 @@ if (!empty($_SESSION['user_id'])) {
   <!-- Sidebar (เหมือน Dashboard) -->
   <aside class="sidebar">
     <div class="p-2">
-      <a class="side-a" href="dashboard.php"><i class="bi bi-speedometer2 me-2"></i> Dashboard</a>
-      <a class="side-a active" href="orders.php"><i class="bi bi-receipt me-2"></i> Orders</a>
-      <a class="side-a" href="products.php"><i class="bi bi-box-seam me-2"></i> Products</a>
-      <a class="side-a" href="tradein_requests.php"><i class="bi bi-arrow-left-right me-2"></i> Trade-in</a>
-      <a class="side-a" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> Service</a>
-      <a class="side-a" href="users.php"><i class="bi bi-people me-2"></i> Users</a>
-      <a class="side-a" href="coupons_list.php"><i class="bi bi-ticket-detailed me-2"></i> Coupons</a>
+      <a class="side-a" href="dashboard.php"><i class="bi bi-speedometer2 me-2"></i> แดชบอร์ด</a>
+      <a class="side-a" href="sales_summary.php"><i class="bi bi-graph-up-arrow me-2"></i> สรุปยอดขาย</a>
+      <a class="side-a active" href="orders.php"><i class="bi bi-receipt me-2"></i> ออเดอร์</a>
+      <a class="side-a" href="products.php"><i class="bi bi-box-seam me-2"></i> สินค้า</a>
+      <a class="side-a" href="tradein_requests.php"><i class="bi bi-arrow-left-right me-2"></i> เทิร์นสินค้า</a>
+      <a class="side-a" href="service_tickets.php"><i class="bi bi-wrench me-2"></i> งานซ่อม</a>
+      <a class="side-a" href="users.php"><i class="bi bi-people me-2"></i> ผู้ใช้</a>
+      <a class="side-a" href="coupons_list.php"><i class="bi bi-ticket-detailed me-2"></i> คูปอง</a>
       <a class="side-a" href="support.php"><i class="bi bi-chat-dots me-2"></i> กล่องข้อความ</a>
     </div>
     <div class="p-3 border-top">
@@ -364,7 +377,20 @@ if (!empty($_SESSION['user_id'])) {
             <tr id="row-<?= (int)$o['id'] ?>">
               <td><?= (int)$o['id'] ?></td>
               <td><?= h($o['username'] ?? ('UID '.$o['user_id'])) ?></td>
-              <td><?= baht($o['total_amount']) ?> ฿</td>
+              <?php
+                $subtotal = (float)$o['total_amount'];
+                $discount = (float)($o['discount_total'] ?? 0);
+                $payable  = (float)($o['payable_total'] ?? ($subtotal - $discount));
+                ?>
+                <td>
+                  <div class="fw-semibold"><?= baht($payable) ?> ฿</div>
+                  <?php if ($discount > 0): ?>
+                    <div class="small text-muted">
+                      <del><?= baht($subtotal) ?> ฿</del> − ส่วนลด <?= baht($discount) ?> ฿
+                    </div>
+                  <?php endif; ?>
+                </td>
+
               <td><?= $o['payment_method']==='bank' ? 'โอนธนาคาร' : 'เก็บเงินปลายทาง' ?></td>
 
               <!-- Payment Status -->

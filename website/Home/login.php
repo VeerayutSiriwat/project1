@@ -283,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="brand-hero"></div>
       <div class="brand-body">
         <span class="badge-soft">
-          <i class="bi bi-shield-check"></i> Secure by WEB APP
+          <i class="bi bi-shield-check"></i> ปลอดภัยด้วยการเข้ารหัส SSL/TLS
         </span>
         <h2 class="mt-3 mb-2 fw-bold">ยินดีต้อนรับกลับมา</h2>
         <p class="mb-0 text-secondary">
@@ -296,7 +296,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <!-- Right login card -->
   <div>
     <div class="text-center mb-3">
-  <img src="assets/img/webapp_logo.png" alt="WEB APP" style="height:70px">
 </div>
     <div class="glass-card">
       <div class="card-head">
@@ -333,9 +332,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </div>
 
           <div class="mb-3">
-            <div class="strength" aria-hidden="true"><span id="strengthBar"></span></div>
             <div class="d-flex justify-content-between mt-1 helper">
-              <small id="strengthText">ความแข็งแรงรหัสผ่าน: -</small>
               <small><a href="forgot.php" class="link-light text-decoration-none">ลืมรหัสผ่าน?</a></small>
             </div>
           </div>

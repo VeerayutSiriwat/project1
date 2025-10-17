@@ -25,12 +25,13 @@ function has_col(mysqli $conn, string $table, string $col): bool {
 function canonical_status($s){
   $s = strtolower($s);
   switch ($s) {
-    case 'queue':    return 'queued';
+    case 'queued':    return 'queued';
     case 'checking': return 'diagnose';
     case 'confirm':  return 'queued';   // << สำคัญ: ยืนยันคิว = เข้าคิว
     default:         return $s;         // pricing, repairing, done, returned, cancelled ...
   }
 }
+
 $canon = canonical_status($status);
 
 /* เตรียมคอลัมน์นัดหมายตาม schema ที่มีจริง */
