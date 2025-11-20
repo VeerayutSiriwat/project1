@@ -201,7 +201,7 @@ if ($res = $conn->query("
     <div class="sec-head">
       <h3 class="fw-bold mb-0"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>ดีลแรงวันนี้</h3>
       <div class="line"></div>
-      <a class="text-decoration-none" href="products.php">ดูทั้งหมด</a>
+      <a class="text-decoration-none" href="products.php?special=deals">ดูทั้งหมด</a>
     </div>
 
     <?php if (empty($dealProducts)): ?>
