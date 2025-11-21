@@ -156,33 +156,155 @@ $saved = isset($_GET['saved']); // สำหรับโชว์เอฟเฟ
   <meta charset="utf-8">
   <title>แก้ไขโปรไฟล์ | WEB APP</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
   <style>
-    body{background:#f6f8fb}
-    .card-rounded{border-radius:16px; border:1px solid #e9eef3}
-    .page-head{background:linear-gradient(135deg,#f6f8ff 0%,#ffffff 70%);border:1px solid #eef2f6;border-radius:14px;padding:14px 16px}
-    .avatar-wrap{width:112px; height:112px; border-radius:50%; overflow:hidden; border:2px solid #e9eef3; background:#fff; display:flex; align-items:center; justify-content:center}
-    .avatar-wrap img{width:100%; height:100%; object-fit:cover}
-    .hint{color:#6b7280}
+    :root{
+      --bg:#f6f8fb;
+      --line:#e3e8f5;
+      --card:#ffffff;
+      --ink:#0b1a37;
+      --muted:#6b7280;
+      --pri:#2563eb;
+      --pri2:#4f46e5;
+    }
 
-    /* Success tick overlay */
+
+    .card-rounded{
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:var(--card);
+      box-shadow:0 14px 34px rgba(15,23,42,.05);
+    }
+
+    .page-head{
+      background:linear-gradient(135deg,var(--pri) 0%,var(--pri2) 55%,#0ea5e9 100%);
+      border-radius:18px;
+      padding:14px 16px;
+      color:#fff;
+      box-shadow:0 14px 34px rgba(37,99,235,.22);
+    }
+    .page-head-title{
+      font-weight:700;
+      letter-spacing:.01em;
+    }
+    .page-head-sub{
+      font-size:.85rem;
+      opacity:.9;
+    }
+
+    .chip-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:8px;
+    }
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:.4rem;
+
+      background:rgba(255,255,255,.20);
+      border:1px solid rgba(255,255,255,.45);
+      backdrop-filter:blur(14px);
+      -webkit-backdrop-filter:blur(14px);
+
+      padding:0 14px;
+      height:34px;
+      border-radius:999px;
+
+      font-weight:600;
+      font-size:.85rem;
+      color:#ffffff;
+      white-space:nowrap;
+    }
+    .chip i{font-size:1rem;opacity:.95;}
+
+    .btn-back{
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.6);
+      background:rgba(255,255,255,.12);
+      color:#ffffff;
+      font-weight:600;
+      display:inline-flex;
+      align-items:center;
+      gap:.35rem;
+      padding:.35rem .9rem;
+    }
+    .btn-back:hover{
+      background:rgba(255,255,255,.22);
+      color:#ffffff;
+    }
+
+    .avatar-wrap{
+      width:112px;
+      height:112px;
+      border-radius:50%;
+      overflow:hidden;
+      border:3px solid #ffffff;
+      background:#e5e7eb;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow:0 10px 30px rgba(15,23,42,.25);
+    }
+    .avatar-wrap img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+    .hint{color:#6b7280;font-size:.85rem;}
+
+    .card-rounded .card-header{
+      background:linear-gradient(180deg,#ffffff,#f8f9ff);
+      border-bottom:1px solid #edf1fb;
+      font-weight:600;
+    }
+
     .success-overlay{
-      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
-      background:rgba(15,23,42,.15); z-index:1055; animation:fadeOut .9s ease 1.2s forwards; pointer-events:none;
+      position:fixed;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:rgba(15,23,42,.15);
+      z-index:1055;
+      animation:fadeOut .9s ease 1.2s forwards;
+      pointer-events:none;
     }
     .success-circle{
-      width:120px;height:120px;border-radius:50%;background:#e6f9ee;border:3px solid #b7f0d3;
-      display:flex;align-items:center;justify-content:center; box-shadow:0 12px 40px rgba(16,185,129,.25);
+      width:120px;height:120px;border-radius:50%;
+      background:#e6f9ee;border:3px solid #b7f0d3;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 12px 40px rgba(16,185,129,.25);
       animation:pop .35s ease-out both;
     }
-    .success-circle i{font-size:56px;color:#16a34a; animation:tick .45s ease .1s both}
+    .success-circle i{
+      font-size:56px;color:#16a34a;
+      animation:tick .45s ease .1s both;
+    }
     @keyframes pop{from{transform:scale(.6)} to{transform:scale(1)}}
     @keyframes tick{from{transform:scale(.2);opacity:.2} to{transform:scale(1);opacity:1}}
     @keyframes fadeOut{to{opacity:0;visibility:hidden}}
-    /* Confetti pieces */
+
     .confetti{
-      position:fixed; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:1054;
+      position:fixed;
+      left:0; top:0;
+      width:100%; height:100%;
+      pointer-events:none;
+      z-index:1054;
+    }
+
+    .quick-actions button,
+    .quick-actions a{
+      border-radius:999px;
+    }
+
+    @media (max-width: 767.98px){
+      .page-head{
+        padding:12px 12px;
+      }
     }
   </style>
 </head>
@@ -190,19 +312,37 @@ $saved = isset($_GET['saved']); // สำหรับโชว์เอฟเฟ
 <?php include __DIR__.'/includes/header.php'; ?>
 
 <div class="container py-4">
-  <div class="page-head d-flex align-items-center justify-content-between mb-3">
-    <div class="d-flex align-items-center gap-2">
-      <a class="btn btn-light border" href="profile.php"><i class="bi bi-arrow-left"></i> โปรไฟล์</a>
-    </div>
-    <div class="text-end">
-      <div class="fw-bold text-primary">แก้ไขโปรไฟล์</div>
-      <div class="small text-muted">อัปเดตข้อมูลส่วนตัวและที่อยู่จัดส่ง</div>
+
+  <div class="page-head mb-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a class="btn-back" href="profile.php">
+          <i class="bi bi-arrow-left"></i><span>กลับไปหน้าโปรไฟล์</span>
+        </a>
+        <div>
+          <div class="page-head-title">แก้ไขโปรไฟล์</div>
+          <div class="page-head-sub">อัปเดตข้อมูลส่วนตัว ที่อยู่จัดส่ง และรูปโปรไฟล์ของคุณ</div>
+        </div>
+      </div>
+      <div class="chip-row">
+        <span class="chip">
+          <i class="bi bi-person"></i><?= h($me['username']) ?>
+        </span>
+        <span class="chip">
+          <i class="bi bi-at"></i><?= h($me['email']) ?>
+        </span>
+      </div>
     </div>
   </div>
 
   <?php if ($errors): ?>
-    <div class="alert alert-danger"><b>ไม่สามารถบันทึกได้</b>
-      <ul class="mb-0"><?php foreach($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
+    <div class="alert alert-danger">
+      <b>ไม่สามารถบันทึกได้</b>
+      <ul class="mb-0">
+        <?php foreach($errors as $e): ?>
+          <li><?= h($e) ?></li>
+        <?php endforeach; ?>
+      </ul>
     </div>
   <?php endif; ?>
 
@@ -211,7 +351,7 @@ $saved = isset($_GET['saved']); // สำหรับโชว์เอฟเฟ
 
     <!-- ซ้าย: ข้อมูลหลัก -->
     <div class="col-lg-8">
-      <div class="card card-rounded shadow-sm mb-3">
+      <div class="card card-rounded shadow-sm mb-3" id="info">
         <div class="card-header bg-white fw-semibold">ข้อมูลบัญชี</div>
         <div class="card-body">
           <div class="row g-3">
@@ -236,7 +376,7 @@ $saved = isset($_GET['saved']); // สำหรับโชว์เอฟเฟ
         </div>
       </div>
 
-      <div class="card card-rounded shadow-sm">
+      <div class="card card-rounded shadow-sm" id="address">
         <div class="card-header bg-white fw-semibold">ที่อยู่สำหรับจัดส่ง</div>
         <div class="card-body">
           <div class="row g-3">
@@ -267,24 +407,29 @@ $saved = isset($_GET['saved']); // สำหรับโชว์เอฟเฟ
 
     <!-- ขวา: รูปโปรไฟล์ -->
     <div class="col-lg-4">
-      <div class="card card-rounded shadow-sm">
+      <div class="card card-rounded shadow-sm" id="avatar">
         <div class="card-header bg-white fw-semibold">รูปโปรไฟล์</div>
         <div class="card-body">
           <div class="d-flex align-items-center gap-3 mb-3">
             <div class="avatar-wrap">
               <img id="avatarPreview" src="<?= h($avatarWeb) ?>" alt="avatar">
             </div>
-            <div class="small hint">
-              รองรับ: jpg, png, webp, gif, svg (≤ 3MB)
+            <div class="hint">
+              รองรับ: jpg, png, webp, gif, svg (≤ 3MB)<br>
+              เลือกรูปใหม่เพื่อเปลี่ยนโปรไฟล์ของคุณ
             </div>
           </div>
           <input type="file" name="avatar" id="avatarInput" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,.svg,image/*">
         </div>
       </div>
 
-      <div class="d-grid mt-3 gap-2">
-        <button id="saveBtn" class="btn btn-primary"><i class="bi bi-save"></i> บันทึกการแก้ไข</button>
-        <a class="btn btn-outline-secondary" href="profile.php">ยกเลิก</a>
+      <div class="d-grid mt-3 gap-2 quick-actions">
+        <button id="saveBtn" class="btn btn-primary">
+          <i class="bi bi-save"></i> บันทึกการแก้ไข
+        </button>
+        <a class="btn btn-outline-secondary" href="profile.php">
+          <i class="bi bi-x-circle"></i> ยกเลิก
+        </a>
       </div>
     </div>
   </form>
@@ -294,7 +439,9 @@ $saved = isset($_GET['saved']); // สำหรับโชว์เอฟเฟ
 <div class="position-fixed top-0 end-0 p-3" style="z-index:1080">
   <div id="saveToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="d-flex">
-      <div class="toast-body"><i class="bi bi-check-circle-fill me-2"></i>บันทึกการแก้ไขเรียบร้อยแล้ว</div>
+      <div class="toast-body">
+        <i class="bi bi-check-circle-fill me-2"></i>บันทึกการแก้ไขเรียบร้อยแล้ว
+      </div>
       <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
     </div>
   </div>
@@ -367,7 +514,10 @@ document.getElementById('avatarInput')?.addEventListener('change', (e)=>{
     const old = btn.innerHTML;
     btn.classList.remove('btn-primary'); btn.classList.add('btn-success');
     btn.innerHTML = '<i class="bi bi-check2-circle"></i> บันทึกแล้ว';
-    setTimeout(()=>{ btn.classList.remove('btn-success'); btn.classList.add('btn-primary'); btn.innerHTML = old; }, 2200);
+    setTimeout(()=>{
+      btn.classList.remove('btn-success'); btn.classList.add('btn-primary');
+      btn.innerHTML = old;
+    }, 2200);
   }
 
   // ล้างพารามิเตอร์ saved จาก URL เพื่อกัน Toast โผล่รอบหน้าเมื่อรีเฟรช

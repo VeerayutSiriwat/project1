@@ -86,26 +86,27 @@ try {
   $events = [];
 
   // repair / service_tickets
-  $hasAppStart = table_has_column('service_tickets', 'appointment_start');
-  $hasAppEnd   = table_has_column('service_tickets', 'appointment_end');
-  $hasAppStat  = table_has_column('service_tickets', 'appointment_status');
-  $hasSchedAt  = table_has_column('service_tickets', 'scheduled_at');
+$hasAppStart   = table_has_column('service_tickets', 'appointment_start');
+$hasAppEnd     = table_has_column('service_tickets', 'appointment_end');
+$hasAppStat    = table_has_column('service_tickets', 'appointment_status');
+$hasSchedAt    = table_has_column('service_tickets', 'scheduled_at');
+$hasSchedStat  = table_has_column('service_tickets', 'schedule_status');
 
-  $timeStartExpr = $hasAppStart ? 'appointment_start' : ($hasSchedAt ? 'scheduled_at' : null);
-  $timeEndExpr   = $hasAppEnd   ? 'appointment_end'   : ($hasSchedAt ? "DATE_ADD(scheduled_at, INTERVAL 60 MINUTE)" : null);
+$timeStartExpr = $hasAppStart ? 'appointment_start' : ($hasSchedAt ? 'scheduled_at' : null);
+$timeEndExpr   = $hasAppEnd   ? 'appointment_end'   : ($hasSchedAt ? "DATE_ADD(scheduled_at, INTERVAL 60 MINUTE)" : null);
 
   if ($timeStartExpr) {
     $sqlRepair = "
-      SELECT id, device_type, brand, model, urgency, status,
-             ".($hasAppStat ? "appointment_status," : "NULL AS appointment_status,")."
-             ".($hasSchedAt ? "schedule_status," : "NULL AS schedule_status,")."
-             $timeStartExpr AS s_start,
-             ".($timeEndExpr ?: 'NULL')." AS s_end
-      FROM service_tickets
-      WHERE $timeStartExpr IS NOT NULL
-        AND $timeStartExpr < ?
-        AND (".($timeEndExpr ?: $timeStartExpr).") >= ?
-    ";
+  SELECT id, device_type, brand, model, urgency, status,
+         ".($hasAppStat  ? "appointment_status," : "NULL AS appointment_status,")."
+         ".($hasSchedStat? "schedule_status,"    : "NULL AS schedule_status,")."
+         $timeStartExpr AS s_start,
+         ".($timeEndExpr ?: 'NULL')." AS s_end
+  FROM service_tickets
+  WHERE $timeStartExpr IS NOT NULL
+    AND $timeStartExpr < ?
+    AND (".($timeEndExpr ?: $timeStartExpr).") >= ?
+";
     $rows = fetch_rows($sqlRepair, [$endDt, $startDt]);
     foreach($rows as $r){
       $title = 'ซ่อม: '.trim(($r['device_type']?:'').' '.$r['brand'].' '.$r['model']);

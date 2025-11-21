@@ -92,6 +92,28 @@ $stmt=$conn->prepare($sql);
 if($params) $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+/* ---------- โหลดรูปเพิ่มสำหรับแต่ละสินค้าในหน้านี้ (ใช้กับ hover slide) ---------- */
+$galleryMap = []; // product_id => [img1, img2, ...]
+if ($products) {
+  $ids = array_map('intval', array_column($products, 'id'));
+  $idList = implode(',', $ids);
+  if ($idList !== '') {
+    $sqlImg = "
+      SELECT product_id, filename, is_cover
+      FROM product_images
+      WHERE product_id IN ($idList) AND filename <> ''
+      ORDER BY is_cover DESC, id ASC
+    ";
+    if ($res = $conn->query($sqlImg)) {
+      while($r = $res->fetch_assoc()){
+        $pid = (int)$r['product_id'];
+        $galleryMap[$pid][] = 'assets/img/'.$r['filename'];
+      }
+    }
+  }
+}
 ?>
 <!doctype html>
 <html lang="th">
@@ -102,6 +124,62 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css">
+
+  <!-- เพิ่มสไตล์สำหรับ hover slide ของรูปสินค้าแต่ละการ์ด -->
+  <style>
+    .product-media.card-gallery{
+      position:relative;
+      border-radius:16px;
+      overflow:hidden;
+      background:radial-gradient(circle at top,#e0f2ff,#f9fafb 55%);
+      box-shadow:0 10px 26px rgba(15,23,42,.12);
+    }
+    .product-media.card-gallery .card-main-img{
+      width:100%;
+      height:180px;
+      object-fit:cover;
+      display:block;
+      transition:transform .3s ease, opacity .2s ease;
+    }
+    .product-media.card-gallery:hover .card-main-img{
+      transform:scale(1.03);
+    }
+
+    @media (min-width: 992px){
+      .product-media.card-gallery .card-main-img{height:190px;}
+    }
+
+    .card-img-dots{
+      position:absolute;
+      left:50%;
+      bottom:8px;
+      transform:translateX(-50%);
+      display:flex;
+      gap:4px;
+      padding:3px 8px;
+      border-radius:999px;
+      background:rgba(15,23,42,.32);
+      backdrop-filter:blur(8px);
+      z-index:4;
+    }
+    .card-dot{
+      width:6px;
+      height:6px;
+      border-radius:999px;
+      background:rgba(255,255,255,.45);
+      transition:all .2s ease;
+    }
+    .card-dot.active{
+      width:14px;
+      background:#fff;
+    }
+
+    /* ให้ badge ในมุมต่าง ๆ อยู่บนสุด */
+    .product-media.card-gallery .badge{
+      position:absolute;
+      z-index:5;
+    }
+  </style>
 </head>
 <body>
 
@@ -157,7 +235,6 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         <!-- หมวดหมู่ -->
         <div class="list-group">
           <?php
-            // คงค่าพารามิเตอร์อื่น ๆ ไว้เสมอเวลาเปลี่ยนหมวด
             $qsAll = array_merge($_GET, ['cat'=>0,'page'=>1]);
           ?>
           <a href="products.php?<?= http_build_query($qsAll) ?>"
@@ -184,16 +261,31 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         <?php else: ?>
           <div class="row g-3">
             <?php foreach($products as $p):
-              $hasDiscount = $p['discount_price'] && $p['discount_price'] < $p['price']; ?>
+              $hasDiscount = $p['discount_price'] && $p['discount_price'] < $p['price'];
+
+              // รูปของการ์ดนี้: ถ้ามีใน product_images ใช้ชุดนั้น, ถ้าไม่มีก็ใช้ img() เดิม
+              $imgs = $galleryMap[$p['id']] ?? [];
+              if (!$imgs) { $imgs[] = img($p); }
+              $firstImg   = $imgs[0];
+              $dataImages = implode('|', $imgs);
+            ?>
               <div class="col-6 col-md-4">
                 <div class="product-card h-100">
-                  <div class="product-media">
-                    <img src="<?=h(img($p))?>" alt="<?=h($p['name'])?>">
+                  <div class="product-media card-gallery" data-images="<?=h($dataImages)?>">
+                    <img src="<?=h($firstImg)?>" alt="<?=h($p['name'])?>" class="card-main-img">
                     <span class="badge text-bg-dark badge-float"><?=h($p['category_name'] ?? 'ทั่วไป')?></span>
                     <?php if((int)$p['stock']<=0): ?>
                       <span class="badge text-bg-secondary badge-stock">หมดสต็อก</span>
                     <?php else: ?>
                       <span class="badge text-bg-success badge-stock">คงเหลือ: <?= (int)$p['stock'] ?></span>
+                    <?php endif; ?>
+
+                    <?php if(count($imgs) > 1): ?>
+                      <div class="card-img-dots">
+                        <?php foreach($imgs as $i => $_): ?>
+                          <span class="card-dot <?= $i===0 ? 'active' : '' ?>"></span>
+                        <?php endforeach; ?>
+                      </div>
                     <?php endif; ?>
                   </div>
 
@@ -230,37 +322,36 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
           </div>
 
           <?php if ($total_pages > 1): ?>
-  <nav aria-label="pagination" class="mt-4 mb-4">
-    <ul class="pagination justify-content-center flex-wrap">
-      <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-        <a class="page-link" href="<?= ($page <= 1) ? '#' : h(page_link($page-1)) ?>">ก่อนหน้า</a>
-      </li>
-      <?php
-        $start = max(1, $page-2);
-        $end   = min($total_pages, $page+2);
-        if ($start > 1){
-          echo '<li class="page-item"><a class="page-link" href="'.h(page_link(1)).'">1</a></li>';
-          if ($start > 2) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
-        }
-        for ($p=$start; $p<=$end; $p++){
-          $active = ($p==$page) ? ' active' : '';
-          echo '<li class="page-item'.$active.'"><a class="page-link" href="'.h(page_link($p)).'">'.$p.'</a></li>';
-        }
-        if ($end < $total_pages){
-          if ($end < $total_pages-1) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
-          echo '<li class="page-item"><a class="page-link" href="'.h(page_link($total_pages)).'">'.$total_pages.'</a></li>';
-        }
-      ?>
-      <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
-        <a class="page-link" href="<?= ($page >= $total_pages) ? '#' : h(page_link($page+1)) ?>">ถัดไป</a>
-      </li>
-    </ul>
-    <div class="text-center text-muted small">
-      หน้า <?= (int)$page ?> / <?= (int)$total_pages ?> • ทั้งหมด <?= (int)$total_rows ?> รายการ
-    </div>
-  </nav>
-<?php endif; ?>
-
+          <nav aria-label="pagination" class="mt-4 mb-4">
+            <ul class="pagination justify-content-center flex-wrap">
+              <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                <a class="page-link" href="<?= ($page <= 1) ? '#' : h(page_link($page-1)) ?>">ก่อนหน้า</a>
+              </li>
+              <?php
+                $start = max(1, $page-2);
+                $end   = min($total_pages, $page+2);
+                if ($start > 1){
+                  echo '<li class="page-item"><a class="page-link" href="'.h(page_link(1)).'">1</a></li>';
+                  if ($start > 2) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
+                }
+                for ($p=$start; $p<=$end; $p++){
+                  $active = ($p==$page) ? ' active' : '';
+                  echo '<li class="page-item'.$active.'"><a class="page-link" href="'.h(page_link($p)).'">'.$p.'</a></li>';
+                }
+                if ($end < $total_pages){
+                  if ($end < $total_pages-1) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
+                  echo '<li class="page-item"><a class="page-link" href="'.h(page_link($total_pages)).'">'.$total_pages.'</a></li>';
+                }
+              ?>
+              <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                <a class="page-link" href="<?= ($page >= $total_pages) ? '#' : h(page_link($page+1)) ?>">ถัดไป</a>
+              </li>
+            </ul>
+            <div class="text-center text-muted small">
+              หน้า <?= (int)$page ?> / <?= (int)$total_pages ?> • ทั้งหมด <?= (int)$total_rows ?> รายการ
+            </div>
+          </nav>
+          <?php endif; ?>
 
         <?php endif; ?>
       </div>
@@ -289,8 +380,10 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     </div>
   </div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+// ---------- add / buy ----------
 document.addEventListener('click', async (e)=>{
   const btn = e.target.closest('button[data-product-id]');
   if(!btn) return;
@@ -336,6 +429,42 @@ document.addEventListener('click', async (e)=>{
     location.href = url.toString();
   }
 });
+
+// ---------- hover slide ของการ์ดรูป ----------
+(function(){
+  const shells = document.querySelectorAll('.card-gallery[data-images]');
+  shells.forEach(shell=>{
+    const imgs = (shell.dataset.images || '').split('|').filter(Boolean);
+    const main = shell.querySelector('.card-main-img');
+    const dots = shell.querySelectorAll('.card-dot');
+    if (!main || imgs.length <= 1) return;
+
+    let idx = 0;
+    let timer = null;
+
+    function show(i){
+      idx = i;
+      main.style.opacity = '0';
+      setTimeout(()=>{
+        main.src = imgs[idx];
+        main.style.opacity = '1';
+      },120);
+      dots.forEach((d,j)=>d.classList.toggle('active', j===idx));
+    }
+
+    shell.addEventListener('mouseenter', ()=>{
+      if (timer) return;
+      timer = setInterval(()=>{ show((idx+1) % imgs.length); }, 2000);
+    });
+    shell.addEventListener('mouseleave', ()=>{
+      if (timer){
+        clearInterval(timer);
+        timer = null;
+        show(0); // กลับภาพแรก
+      }
+    });
+  });
+})();
 </script>
 
 </body>

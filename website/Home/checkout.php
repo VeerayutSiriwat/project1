@@ -103,10 +103,13 @@ function validate_and_price_coupon(mysqli $conn, int $uid, string $code, array $
   if (!empty($starts) && $starts>$now) { $out['msg']='คูปองนี้ยังไม่เริ่มใช้งาน'; return $out; }
   if (!empty($ends)   && $ends<$now)   { $out['msg']='คูปองนี้หมดอายุแล้ว'; return $out; }
 
-  // ใช้ได้กับอะไร
+   // ใช้ได้กับอะไร
   $applies = strtolower($c['applies_to'] ?? 'all'); // all/products/services/tradein
-  if (!in_array($applies,['all','products'],true)) {
-    $out['msg']='คูปองนี้ไม่รองรับการซื้อสินค้า'; return $out;
+
+  // อนุญาต all, products, tradein ให้ใช้ลดในคำสั่งซื้อสินค้าได้
+  if (!in_array($applies, ['all','products','tradein'], true)) {
+    $out['msg'] = 'คูปองนี้ไม่รองรับการซื้อสินค้า';
+    return $out;
   }
 
   // ---------- นับการใช้คูปอง (กันใช้ซ้ำ) ----------
@@ -142,13 +145,13 @@ function validate_and_price_coupon(mysqli $conn, int $uid, string $code, array $
     $myUsed  = (int)$row['used_by_me'];
   }
 
-  if ($usesLim>0 && $usedTot >= $usesLim){ 
-    $out['msg']='คูปองนี้มีผู้ใช้ครบแล้ว'; 
-    return $out; 
+  if ($usesLim>0 && $usedTot >= $usesLim){
+    $out['msg']='คูปองนี้มีผู้ใช้ครบแล้ว';
+    return $out;
   }
-  if ($perUser>0 && $myUsed >= $perUser){ 
-    $out['msg']='คุณใช้คูปองนี้ครบแล้ว'; 
-    return $out; 
+  if ($perUser>0 && $myUsed >= $perUser){
+    $out['msg']='คุณใช้คูปองนี้ครบแล้ว';
+    return $out;
   }
 
   // ---------- คำนวณฐานเพื่อคิดส่วนลด ----------
@@ -242,17 +245,41 @@ if ($st = $conn->prepare($sql)) {
   $userCoupons = $st->get_result()->fetch_all(MYSQLI_ASSOC);
   $st->close();
 }
+$filteredCoupons = [];
+if (!empty($userCoupons)) {
+  foreach ($userCoupons as $cRow) {
+    $res = validate_and_price_coupon($conn, $user_id, (string)$cRow['code'], $items);
+    if (!empty($res['ok']) && $res['ok'] && $res['discount'] > 0) {
+      // เก็บ preview discount ไว้ใช้ฝั่ง client ถ้าจำเป็น
+      $cRow['preview_discount'] = (float)$res['discount'];
+      $filteredCoupons[] = $cRow;
+    }
+  }
+}
+$userCoupons = $filteredCoupons;
 
 /* ====== Preview คูปองบนหน้านี้ (Server คิดจริง) ====== */
 $applyFromGet = isset($_GET['apply']) ? trim((string)$_GET['apply']) : '';
 $couponPreview = ['ok'=>false,'discount'=>0.0,'code'=>'','msg'=>''];
+
 if ($applyFromGet !== '') {
   $res = validate_and_price_coupon($conn, $user_id, $applyFromGet, $items);
-  $couponPreview['ok'] = $res['ok'];
-  $couponPreview['discount'] = $res['discount'];
-  $couponPreview['code'] = $applyFromGet;
-  $couponPreview['msg'] = $res['msg'] ?? '';
+
+  if (!empty($res['ok']) && $res['ok']) {
+    // ใช้ได้
+    $couponPreview['ok']       = true;
+    $couponPreview['discount'] = (float)$res['discount'];
+    $couponPreview['code']     = $applyFromGet;
+    $couponPreview['msg']      = $res['msg'] ?? '';
+  } else {
+    // ใช้ไม่ได้ -> อย่าเก็บโค้ดไว้ ปล่อยให้สั่งซื้อแบบไม่ใช้คูปอง
+    $couponPreview['ok']       = false;
+    $couponPreview['discount'] = 0.0;
+    $couponPreview['code']     = '';
+    $couponPreview['msg']      = $res['msg'] ?? '';
+  }
 }
+
 $initial_discount = (float)$couponPreview['discount'];
 $initial_code     = (string)$couponPreview['code'];
 $grand_initial    = max(0.0, $total - $initial_discount);
@@ -293,67 +320,231 @@ $book = []; // เปิดใช้ได้ภายหลัง
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
     :root{
-      --bg:#f6f8fb; --card:#fff; --line:#e9eef3; --ink:#1f2937; --muted:#6b7280;
-      --pri:#2563eb; --pri2:#4f46e5; --good:#16a34a; --warn:#f59e0b;
+  --bg:#f6f8fb;
+  --card:#fff;
+  --line:#e1ebf7;
+  --ink:#0f172a;
+  --muted:#6b7280;
+  --pri:#2563eb;
+  --pri2:#4f46e5;
+  --good:#16a34a;
+  --warn:#f59e0b;
+  /* สูงประมาณ header + ระยะห่างนิดหน่อย */
+  --header-h: 72px;
+}
+    body.bg-page{
+      min-height:100vh;
+      background:
+        radial-gradient(circle at top left, #e0f2ff 0, #f5f9ff 45%, #ffffff 80%);
+      color:var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
-    body{background:linear-gradient(180deg,#f8fbff,#f6f8fb 50%,#f5f7fa);}
-    .card{border-radius:16px;border:1px solid var(--line); background:var(--card);}
-    .shadow-soft{box-shadow:0 10px 30px rgba(17,24,39,.06);}
-    .page-head{border-radius:20px; color:#fff; padding:18px 18px 16px;
+    .page-shell{
+      max-width:1120px;
+    }
+    .card{
+      border-radius:18px;
+      border:1px solid var(--line);
+      background:var(--card);
+    }
+    .shadow-soft{
+      box-shadow:0 16px 40px rgba(15,23,42,.06);
+    }
+
+    /* Header / Stepper */
+    .page-head{
+      border-radius:20px;
+      color:#fff;
+      padding:18px 18px 14px;
       background:linear-gradient(135deg,var(--pri) 0%, var(--pri2) 55%, #0ea5e9 100%);
-      box-shadow:0 8px 24px rgba(37,99,235,.15);}
-    .stepper{display:flex; gap:12px; flex-wrap:wrap; margin-top:10px}
-    .step{display:flex; align-items:center; gap:8px; color:#e6ecff; font-weight:600;
-      background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2);
-      padding:6px 12px; border-radius:999px;}
-    .step .num{width:24px; height:24px; border-radius:999px; display:grid; place-items:center;
-      background:#fff; color:#1f2a44; font-weight:800; font-size:.85rem;}
-    .step.active{background:#fff; color:#0b1a37;}
-    .step.active .num{background:var(--pri); color:#fff;}
-    .hint{color:#6b7280}
-    .addr-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
-    @media(max-width:992px){.addr-grid{grid-template-columns:1fr}}
-    .coupon-pill{display:inline-flex;align-items:center;gap:.5rem;border:1px dashed #cdd6e1;border-radius:999px;padding:.35rem .7rem;background:#fff; transition:.15s ease;}
-    .coupon-pill:hover{ transform:translateY(-1px); box-shadow:0 8px 24px rgba(17,24,39,.05);}
-    .coupon-pill .code{font-weight:800}
-    .coupon-pill .val{font-size:.9rem;color:#475569}
-    /* disabled state */
-    .coupon-pill.disabled{opacity:.55; pointer-events:none; border-style:solid; border-color:#e5e7eb;}
-    .text-strike{text-decoration:line-through;color:#94a3b8}
-    @media(min-width:992px){.sticky-summary{ position:sticky; top:18px; }}
-    .line-dash{ height:1px; background:repeating-linear-gradient(90deg, transparent 0 8px, var(--line) 8px 16px); }
-    .btn-strong{ font-weight:800; border-radius:12px; padding:.9rem 1rem; }
-    .list-thumb{ width:64px; height:64px; object-fit:cover; border-radius:12px; border:1px solid var(--line); background:#fff;}
-    .badge-soft{ background:#eef2ff; color:#4338ca; border-radius:999px; }
-    .back-link{ text-decoration:none; }
+      box-shadow:0 18px 48px rgba(37,99,235,.22);
+      margin-bottom:1.25rem;
+    }
+    .page-head h3{
+      font-weight:700;
+      letter-spacing:.02em;
+    }
+    .stepper{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .step{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      color:#e6ecff;
+      font-weight:600;
+      background:rgba(255,255,255,.09);
+      border:1px solid rgba(255,255,255,.25);
+      padding:6px 13px;
+      border-radius:999px;
+      font-size:.9rem;
+    }
+    .step .num{
+      width:24px;
+      height:24px;
+      border-radius:999px;
+      display:grid;
+      place-items:center;
+      background:#fff;
+      color:#1f2a44;
+      font-weight:800;
+      font-size:.85rem;
+    }
+    .step.active{
+      background:#fff;
+      color:#0b1a37;
+      box-shadow:0 10px 26px rgba(15,23,42,.2);
+    }
+    .step.active .num{
+      background:#16a34a;
+      color:#fff;
+    }
+    .step.active i{
+      color:#16f2a4;
+    }
+
+    .hint{color:var(--muted)}
+
+    .addr-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:.5rem;
+    }
+    @media(max-width:992px){
+      .addr-grid{grid-template-columns:1fr;}
+    }
+
+    /* Product list */
+    .list-thumb{
+      width:64px;
+      height:64px;
+      object-fit:cover;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:#fff;
+    }
+    .badge-soft{
+      background:#eef2ff;
+      color:#4338ca;
+      border-radius:999px;
+    }
+    .text-strike{
+      text-decoration:line-through;
+      color:#94a3b8;
+    }
+
+    /* Coupon section */
+    .coupon-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:.45rem;
+      border:1px dashed #cdd6e1;
+      border-radius:999px;
+      padding:.32rem .75rem;
+      background:#ffffff;
+      transition:.15s ease;
+      font-size:.82rem;
+    }
+    .coupon-pill .code{
+      font-weight:800;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      color:#1d4ed8;
+    }
+    .coupon-pill .val{
+      font-size:.8rem;
+      color:#64748b;
+    }
+    .coupon-pill:hover{
+      transform:translateY(-1px);
+      box-shadow:0 10px 28px rgba(15,23,42,.08);
+      border-style:solid;
+      border-color:#93c5fd;
+    }
+    .coupon-pill.disabled{
+      opacity:.55;
+      pointer-events:none;
+      border-style:solid;
+      border-color:#e5e7eb;
+      box-shadow:none;
+    }
+
+    /* Summary sticky card */
+    @media(min-width:992px){
+  .sticky-summary{
+    position:sticky;
+    /* เลื่อนลงมาให้พ้น header ที่ lock ไว้ด้านบน */
+    top: calc(var(--header-h) + 16px);
+  }
+}
+
+    .line-dash{
+      height:1px;
+      background:repeating-linear-gradient(90deg, transparent 0 8px, var(--line) 8px 16px);
+    }
+    .btn-strong{
+      font-weight:800;
+      border-radius:14px;
+      padding:.9rem 1rem;
+    }
+
+    .small-muted{
+      font-size:.8rem;
+      color:#94a3b8;
+    }
+    .back-link{
+      text-decoration:none;
+      font-size:.9rem;
+    }
+    .back-link:hover{
+      text-decoration:underline;
+    }
   </style>
 </head>
-<body>
+<body class="bg-page">
 <?php include __DIR__.'/includes/header.php'; ?>
 
-<div class="container py-4">
+<div class="page-shell container py-4">
   <div class="page-head">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <h3 class="m-0"><i class="bi bi-cash-coin me-2"></i>ชำระเงิน</h3>
-      <a href="cart_view.php" class="text-white-50 back-link"><i class="bi bi-arrow-left"></i> กลับไปแก้ไขรถเข็น</a>
+      <h3 class="m-0">
+        <i class="bi bi-cash-coin me-2"></i>
+        ชำระเงิน
+      </h3>
+      <a href="cart_view.php" class="text-white-50 back-link">
+        <i class="bi bi-arrow-left"></i> กลับไปแก้ไขรถเข็น
+      </a>
     </div>
     <div class="stepper">
-      <div class="step"><span class="num">1</span> รถเข็น</div>
-      <div class="step active"><span class="num">2</span> ชำระเงิน</div>
+      <div class="step">
+        <span class="num">1</span>
+        รถเข็น
+      </div>
+      <div class="step active">
+        <span class="num"><i class="bi bi-check2"></i></span>
+        ชำระเงิน
+      </div>
     </div>
   </div>
 
   <?php if(empty($items)): ?>
-    <div class="alert alert-warning mt-3"><i class="bi bi-exclamation-triangle"></i> ไม่มีสินค้าในคำสั่งซื้อ</div>
+    <div class="alert alert-warning mt-3">
+      <i class="bi bi-exclamation-triangle"></i> ไม่มีสินค้าในคำสั่งซื้อ
+    </div>
   <?php else: ?>
-  <div class="row g-3 mt-3">
+  <div class="row g-3 mt-1">
     <!-- ซ้าย -->
     <div class="col-lg-7">
       <!-- สินค้า -->
       <div class="card shadow-soft">
         <div class="card-header fw-semibold d-flex align-items-center justify-content-between">
           <span>สินค้า</span>
-          <span class="badge badge-soft px-3 py-2">ทั้งหมด <?=count($items)?> รายการ</span>
+          <span class="badge badge-soft px-3 py-2">
+            ทั้งหมด <?=count($items)?> รายการ
+          </span>
         </div>
         <ul class="list-group list-group-flush" id="itemList">
           <?php foreach($items as $it):
@@ -380,65 +571,42 @@ $book = []; // เปิดใช้ได้ภายหลัง
           </li>
           <?php endforeach; ?>
         </ul>
-        <div class="card-footer text-end fw-bold">รวมสินค้า: <span id="subtotalText"><?=baht($total)?></span> ฿</div>
+        <div class="card-footer text-end fw-bold">
+          รวมสินค้า: <span id="subtotalText"><?=baht($total)?></span> ฿
+        </div>
       </div>
 
       <!-- คูปอง -->
       <div class="card shadow-soft mt-3">
         <div class="card-header fw-semibold d-flex align-items-center justify-content-between">
           <span><i class="bi bi-ticket-perforated me-1"></i> คูปองของฉัน</span>
-          <span class="small text-muted">กดเพื่อใช้ หรือลองกรอกเองได้</span>
+          <span class="small text-muted">กดเลือกรายการด้านล่าง หรือกรอกโค้ดเอง</span>
         </div>
         <div class="card-body">
           <?php if(empty($userCoupons)): ?>
             <div class="text-muted">ยังไม่มีคูปองที่ใช้งานได้</div>
           <?php else: ?>
             <div class="d-flex flex-wrap gap-2 mb-2" id="myCoupons">
-              <?php foreach($userCoupons as $c):
-                $cap   = ($c['type']==='percent' ? (float)$c['value'].'%' : baht($c['value']).' ฿');
-                $limit = (int)$c['uses_limit'];
-                $per   = (int)$c['per_user_limit'];
-                $usedTotal = (int)$c['used_total'];
-                $usedMe    = (int)$c['used_by_me'];
-
-                $leftTotalRaw = ($limit>0) ? max(0, $limit-$usedTotal) : PHP_INT_MAX;
-                $leftMeRaw    = ($per>0)   ? max(0, $per-$usedMe)       : PHP_INT_MAX;
-
-                $leftTotalTxt = ($limit>0) ? (string)max(0, $limit-$usedTotal) : 'ไม่จำกัด';
-                $leftMeTxt    = ($per>0)   ? (string)max(0, $per-$usedMe)       : 'ไม่จำกัด';
-
-                $limitText = ($limit>0 || $per>0)
-                  ? "จำกัดสิทธิ์".($per>0 ? " คนละ {$per} ครั้ง" : "").($limit>0 ? " • รวมทั้งระบบ {$limit} ครั้ง" : "")
-                  : "ไม่จำกัดสิทธิ์";
-
-                $exhausted = ($leftTotalRaw === 0) || ($leftMeRaw === 0);
-                if ($exhausted) continue;
-                $btnClass = $exhausted ? 'coupon-pill disabled' : 'coupon-pill';
-              ?>
-<button type="button"
-        class="<?= $btnClass ?>"
-        data-code="<?=h($c['code'])?>"
-        data-type="<?=h($c['type'])?>"
-        data-value="<?=h($c['value'])?>"
-        data-min="<?=h($c['min_order_total'])?>"
-        data-applies="<?=h($c['applies_to'])?>"
-        data-stack="<?= (int)$c['allow_stack_with_discount_price'] ?>"
-        data-limit="<?= (int)$c['uses_limit'] ?>"
-        data-per="<?= (int)$c['per_user_limit'] ?>"
-        data-used-total="<?= (int)$c['used_total'] ?>"
-        data-used-me="<?= (int)$c['used_by_me'] ?>"
-        data-status="<?= h($c['status']) ?>"
-        data-starts="<?= h($c['starts_at'] ?? '') ?>"
-        data-ends="<?= h($c['ends_at'] ?? '') ?>"
-        <?= $exhausted ? 'aria-disabled="true" tabindex="-1"' : '' ?>>
-  <span class="code"><?=h($c['code'])?></span>
-  <span class="val">ลด <?=h($cap)?></span>
-  <span class="val"><?=h($limitText)?></span>
-  <span class="val">คงเหลือ (ฉัน): <?=h($leftMeTxt)?></span>
-  <span class="val">คงเหลือ (รวม): <?=h($leftTotalTxt)?></span>
-  <?php if ($exhausted): ?><span class="val text-danger fw-semibold">หมดสิทธิ์</span><?php endif; ?>
-</button>
-              <?php endforeach; ?>
+              <?php foreach($userCoupons as $c): ?>
+  <button type="button"
+          class="coupon-pill"
+          data-code="<?=h($c['code'])?>"
+          data-type="<?=h($c['type'])?>"
+          data-value="<?=h($c['value'])?>"
+          data-min="<?=h($c['min_order_total'])?>"
+          data-applies="<?=h($c['applies_to'])?>"
+          data-stack="<?= (int)$c['allow_stack_with_discount_price'] ?>"
+          data-limit="<?= (int)$c['uses_limit'] ?>"
+          data-per="<?= (int)$c['per_user_limit'] ?>"
+          data-used-total="<?= (int)$c['used_total'] ?>"
+          data-used-me="<?= (int)$c['used_by_me'] ?>"
+          data-status="<?= h($c['status']) ?>"
+          data-starts="<?= h($c['starts_at'] ?? '') ?>"
+          data-ends="<?= h($c['ends_at'] ?? '') ?>"
+          title="คูปอง <?=h($c['code'])?>">
+    <span class="code"><?=h($c['code'])?></span>
+  </button>
+<?php endforeach; ?>
             </div>
           <?php endif; ?>
 
@@ -448,7 +616,7 @@ $book = []; // เปิดใช้ได้ภายหลัง
             <button class="btn btn-outline-primary" type="button" id="applyCouponBtn">ใช้คูปอง</button>
           </div>
           <div class="form-text hint mt-1">
-            ระบบจะคำนวณส่วนลดให้ดูทันที และส่งโค้ดคูปองไปยืนยันในขั้นตอนสั่งซื้อ (ฝั่งเซิร์ฟเวอร์จะตรวจซ้ำอีกครั้ง)
+            ระบบจะคำนวณส่วนลดให้ดูทันที และส่งโค้ดคูปองไปยืนยันอีกครั้งตอนบันทึกคำสั่งซื้อ (ฝั่งเซิร์ฟเวอร์ตรวจซ้ำอีกรอบ)
           </div>
 
           <?php if($applyFromGet!==''): ?>
@@ -462,7 +630,8 @@ $book = []; // เปิดใช้ได้ภายหลัง
       <!-- จัดส่ง + ชำระ -->
       <div class="card shadow-soft mt-3">
         <div class="card-header fw-semibold d-flex align-items-center gap-2">
-          <i class="bi bi-truck"></i> ข้อมูลการจัดส่ง &nbsp; <span class="small text-muted">กรอกรายละเอียดให้ครบถ้วน</span>
+          <i class="bi bi-truck"></i> ข้อมูลการจัดส่ง
+          <span class="small text-muted">กรอกรายละเอียดให้ครบถ้วน</span>
         </div>
         <div class="card-body">
           <form action="place_order.php" method="post" id="checkoutForm" class="needs-validation" novalidate>
@@ -555,7 +724,9 @@ $book = []; // เปิดใช้ได้ภายหลัง
                 <option value="cod" selected>เก็บเงินปลายทาง</option>
                 <option value="bank">โอนเงินธนาคาร</option>
               </select>
-              <div class="form-text hint mt-1">เลือกชำระผ่านธนาคาร ระบบจะรอตรวจสอบสลิปโดยผู้ดูแล</div>
+              <div class="form-text hint mt-1">
+                เลือกชำระผ่านธนาคาร ระบบจะรอตรวจสอบสลิปโดยผู้ดูแล
+              </div>
             </div>
 
             <div class="d-grid mt-3">
@@ -595,6 +766,9 @@ $book = []; // เปิดใช้ได้ภายหลัง
             <?php if($applyFromGet!==''): ?>
               <?= h($couponPreview['ok'] ? "ใช้คูปอง $applyFromGet แล้ว" : ('⚠ '.$couponPreview['msg'])) ?>
             <?php endif; ?>
+          </div>
+          <div class="small-muted mt-2">
+            เมื่อกดยืนยัน ระบบจะสร้างคำสั่งซื้อและล็อกสิทธิ์คูปองตามจริงอีกครั้ง
           </div>
         </div>
       </div>
@@ -666,7 +840,9 @@ function computeDiscount(total, c) {
   if (min > 0 && total < min) return {ok:false, amount:0, reason:`ยอดสั่งซื้อไม่ถึงขั้นต่ำ ${fmt(min)} ฿`};
 
   const applies = String(c.applies_to||'all');
-  if (applies !== 'all' && applies !== 'products') return {ok:false, amount:0, reason:'คูปองนี้จำกัดการใช้งาน'};
+  if (applies !== 'all' && applies !== 'products' && applies !== 'tradein') {
+    return {ok:false, amount:0, reason:'คูปองนี้จำกัดการใช้งาน'};
+  }
 
   let amt = 0;
   if (String(c.type) === 'percent') {
@@ -700,9 +876,8 @@ function applyCouponObj(c) {
     codeHidden.value = '';
   } else {
     discount = r.amount;
-    const cap = (c.type==='percent') ? `${Number(c.value)}%` : `${fmt(c.value)} ฿`;
     const minCap = Number(c.min_order_total||0)>0 ? ` (ขั้นต่ำ ${fmt(c.min_order_total)} ฿)` : '';
-    showCouponNote(true, `<i class="bi bi-check2-circle"></i> ใช้คูปอง <b>${c.code}</b> แล้ว: ลด <b>${fmt(discount)} ฿</b> ${minCap}`);
+    showCouponNote(true, `<i class="bi bi-check2-circle"></i> ใช้คูปอง <b>${c.code}</b> แล้ว: ลด <b>${fmt(discount)} ฿</b>${minCap}`);
     input && (input.value = c.code);
     codeHidden.value = c.code;
   }
@@ -793,11 +968,26 @@ function fillFromBook(){
   el('postcode').value      = a.pc || '';
 }
 function clearCustom(){ inputs.forEach(id => el(id).value = ''); }
-function toggleBookPicker(show){ const picker = document.getElementById('bookPicker'); if (picker) picker.style.display = show ? 'block' : 'none'; }
+function toggleBookPicker(show){
+  const picker = document.getElementById('bookPicker');
+  if (picker) picker.style.display = show ? 'block' : 'none';
+}
 
-document.getElementById('addrProfile')?.addEventListener('change', e=>{ if (!e.target.checked) return; toggleBookPicker(false); fillFromProfile(); });
-document.getElementById('addrBook')?.addEventListener('change', e=>{ if (!e.target.checked) return; toggleBookPicker(true); fillFromBook(); });
-document.getElementById('addrCustom')?.addEventListener('change', e=>{ if (!e.target.checked) return; toggleBookPicker(false); clearCustom(); });
+document.getElementById('addrProfile')?.addEventListener('change', e=>{
+  if (!e.target.checked) return;
+  toggleBookPicker(false);
+  fillFromProfile();
+});
+document.getElementById('addrBook')?.addEventListener('change', e=>{
+  if (!e.target.checked) return;
+  toggleBookPicker(true);
+  fillFromBook();
+});
+document.getElementById('addrCustom')?.addEventListener('change', e=>{
+  if (!e.target.checked) return;
+  toggleBookPicker(false);
+  clearCustom();
+});
 document.getElementById('address_id')?.addEventListener('change', fillFromBook);
 
 // Bootstrap validation
@@ -812,9 +1002,9 @@ document.getElementById('address_id')?.addEventListener('change', fillFromBook);
 })();
 
 // init
-calcGrand(); fillFromProfile();
+calcGrand();
+fillFromProfile();
 if (applyFromGet) {
-  // ถ้าหน้าถูกเปิดมาพร้อม ?apply= ให้โชว์ note แล้ว
   document.getElementById('couponNote')?.style?.setProperty('display','block');
 }
 </script>

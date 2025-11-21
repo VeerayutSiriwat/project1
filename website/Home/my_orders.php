@@ -1,5 +1,5 @@
 <?php 
-// Home/my_orders.php — premium UI, safe with your existing logic
+// Home/my_orders.php — premium UI, softer & easier to read
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require __DIR__ . '/includes/db.php';
 
@@ -53,11 +53,6 @@ $total_pages = max(1, (int)ceil($total_orders / $per_page));
 $next = min($total_pages, $next);
 
 /* ---------- ดึงรายการคำสั่งซื้อ (หน้า current) ---------- */
-/* เราจะดึง 3 ค่า:
-   - total_amount    = ผลรวมก่อนลด  (SUM(order_items))
-   - discount_total  = ส่วนลด (ถ้ามีคอลัมน์; ถ้าไม่มีให้เป็น 0)
-   - payable_total   = ยอดที่ต้องจ่ายหลังลด  (ถ้ามี orders.total_price ใช้ค่านั้น, ไม่งั้นคำนวณ = total_amount - discount_total)
-*/
 $hasTotalCol = has_col($conn,'orders','total_price');
 $hasDiscCol  = has_col($conn,'orders','discount_total');
 
@@ -139,43 +134,201 @@ $stAgg->close();
   <meta charset="utf-8">
   <title>คำสั่งซื้อของฉัน | WEB APP</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
   <style>
     :root{
-      --bg:#f6f8fb; --card:#fff; --line:#e9eef3; --ink:#0b1a37; --muted:#6b7280;
-      --pri:#2563eb; --pri2:#4f46e5; --good:#16a34a; --warn:#f59e0b; --bad:#ef4444;
+      --bg:#f6f8fb;
+      --card:#ffffff;
+      --line:#e1ebf7;
+      --ink:#0b1a37;
+      --muted:#6b7280;
+      --pri:#2563eb;
+      --pri2:#4f46e5;
+      --good:#16a34a;
+      --warn:#f59e0b;
+      --bad:#ef4444;
     }
-    body{background:linear-gradient(180deg,#f8fbff,#f6f8fb 50%,#f5f7fa);}
-    .page-head{border-radius:20px;color:#fff;padding:18px 18px 12px;background:linear-gradient(135deg,var(--pri) 0%, var(--pri2) 55%, #0ea5e9 100%);box-shadow:0 8px 24px rgba(37,99,235,.15);}
-    .chips{display:flex;gap:.5rem;flex-wrap:wrap}
-    .chip{border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.15);color:#fff;border-radius:999px;padding:.25rem .6rem;font-weight:700}
-    .tabs{ margin-top:12px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:6px; display:flex; gap:6px; flex-wrap:wrap; }
-    .tab-btn{ border:none; background:transparent; color:#536078; padding:8px 14px; border-radius:10px; font-weight:800; }
-    .tab-btn.active{ color:#0b1a37; background:#eef3ff; }
-    .shell{background:#fff;border:1px solid #e9eef3;border-radius:18px;overflow:hidden;box-shadow:0 16px 40px rgba(2,6,23,.06)}
-    .toolbar{ padding:10px 16px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .tbl-wrap{overflow:auto}
-    .table-modern{margin:0}
-    .table-modern thead th{background:linear-gradient(180deg,#fbfdff,#f2f6ff);border-bottom:1px solid #e6edf6;color:#1f2937;font-weight:700}
-    .table-modern tbody tr{transition:background .15s}
-    .table-modern tbody tr:hover{background:#f9fbff}
-    .table-modern td,.table-modern th{vertical-align:middle}
-    .badge-soft{background:#eef2f7;border:1px solid #e5ecf6;color:#111827}
-    .timer-badge{display:inline-flex;align-items:center;gap:.35rem;background:#0b5ed7;color:#fff;border-radius:999px;padding:.2rem .55rem;font-weight:800}
-    .timer-badge i{font-size:1rem}
-    .actions .btn{border-radius:10px}
-    .sticky-pagination{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(246,248,251,0),#f6f8fb 40%, #f6f8fb);padding-top:.4rem}
-    .badge.rounded-pill{ font-weight:800; }
+    .page-head{
+      border-radius:20px;
+      color:#fff;
+      padding:16px 18px 12px;
+      background:linear-gradient(135deg,var(--pri) 0%, var(--pri2) 55%, #0ea5e9 100%);
+      box-shadow:0 14px 36px rgba(37,99,235,.18);
+    }
+    .page-head h3{
+      font-weight:700;
+      letter-spacing:.01em;
+    }
+    .chips{
+      display:flex;
+      gap:.5rem;
+      flex-wrap:wrap;
+      font-size:.85rem;
+    }
+    .chip{
+      border:1px solid rgba(255,255,255,.45);
+      background:rgba(255,255,255,.10);
+      color:#e5edff;
+      border-radius:999px;
+      padding:.15rem .6rem;
+      font-weight:600;
+    }
+    .tabs{
+      margin-top:10px;
+      background:#f8fbff;
+      border-radius:999px;
+      padding:4px;
+      display:flex;
+      gap:4px;
+      flex-wrap:wrap;
+    }
+    .tab-btn{
+      border:none;
+      background:transparent;
+      color:#64748b;
+      padding:6px 12px;
+      border-radius:999px;
+      font-weight:600;
+      font-size:.85rem;
+      text-decoration:none;
+      white-space:nowrap;
+    }
+    .tab-btn span.badge{
+      font-weight:600;
+      font-size:.7rem;
+    }
+    .tab-btn.active{
+      color:#0b1a37;
+      background:#ffffff;
+      box-shadow:0 6px 16px rgba(15,23,42,.08);
+    }
+
+    .shell{
+      background:var(--card);
+      border-radius:18px;
+      border:1px solid var(--line);
+      box-shadow:0 16px 40px rgba(2,6,23,.06);
+      overflow:hidden;
+    }
+
+    .toolbar{
+      padding:10px 14px;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+      border-bottom:1px solid #edf1f8;
+      background:#fafbff;
+    }
+    .toolbar .form-control{
+      font-size:.9rem;
+    }
+    .toolbar .btn-icon{
+      border-radius:999px;
+      padding:.35rem .7rem;
+      font-size:.9rem;
+    }
+
+    .tbl-wrap{overflow:auto;}
+
+    .table-modern{
+      margin:0;
+      font-size:.9rem;
+    }
+    .table-modern thead th{
+      background:#f5f7fc;
+      border-bottom:1px solid #e3e8f5;
+      color:#111827;
+      font-weight:600;
+    }
+    .table-modern tbody tr{
+      transition:background .12s;
+    }
+    .table-modern tbody tr:hover{
+      background:#f9fbff;
+    }
+    .table-modern td,.table-modern th{
+      vertical-align:middle;
+    }
+
+    .badge-soft{
+      background:#eef2f7;
+      border:1px solid #e5ecf6;
+      color:#111827;
+    }
+    .timer-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:.3rem;
+      background:#0b5ed7;
+      color:#fff;
+      border-radius:999px;
+      padding:.15rem .5rem;
+      font-weight:700;
+      font-size:.8rem;
+    }
+    .timer-badge i{font-size:.95rem}
+
+    .actions .btn{
+      border-radius:10px;
+      font-size:.85rem;
+    }
+
+    .small-muted{
+      font-size:.8rem;
+      color:#94a3b8;
+    }
+
+    .sticky-pagination{
+      position:sticky;
+      bottom:0;
+      background:linear-gradient(180deg,rgba(246,248,251,0),#f6f8fb 40%, #f6f8fb);
+      padding:.4rem .6rem .6rem;
+    }
+
+    .badge.rounded-pill{ font-weight:700; }
     .bg-primary-subtle{ background:#e7f0ff!important; }
     .bg-success-subtle{ background:#e8fdf3!important; }
 
+    /* mobile: แปลงเป็นการ์ด อ่านง่ายขึ้น */
     @media (max-width: 992px){
-      .table-modern thead{display:none}
-      .table-modern tbody tr{display:block;margin:12px; border:1px solid #e9eef3;border-radius:14px;padding:.75rem;background:#fff}
-      .table-modern tbody td{display:flex;justify-content:space-between;border:0;border-bottom:1px dashed #eef2f6;padding:.45rem 0}
-      .table-modern tbody td:last-child{border-bottom:0}
-      .table-modern tbody td::before{content:attr(data-label);font-weight:700;color:#6b7280;max-width:45%;padding-right:.75rem}
+      .toolbar{
+        padding:8px 10px;
+      }
+      .table-modern thead{display:none;}
+      .table-modern tbody tr{
+        display:block;
+        margin:10px;
+        border:1px solid #e5ecf6;
+        border-radius:14px;
+        padding:.6rem .7rem;
+        background:#ffffff;
+        box-shadow:0 8px 24px rgba(15,23,42,.04);
+      }
+      .table-modern tbody td{
+        display:flex;
+        justify-content:space-between;
+        border:0;
+        border-bottom:1px dashed #edf1f8;
+        padding:.35rem 0;
+      }
+      .table-modern tbody td:last-child{
+        border-bottom:0;
+        padding-top:.45rem;
+      }
+      .table-modern tbody td::before{
+        content:attr(data-label);
+        font-weight:600;
+        color:#6b7280;
+        max-width:45%;
+        padding-right:.75rem;
+      }
+      .actions{
+        justify-content:flex-end;
+        width:100%;
+      }
     }
   </style>
 </head>
@@ -185,36 +338,70 @@ $stAgg->close();
 <div class="container py-4">
   <div class="page-head">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <h3 class="m-0"><i class="bi bi-bag me-2"></i>คำสั่งซื้อของฉัน</h3>
+      <div>
+        <h3 class="m-0">
+          <i class="bi bi-bag me-2"></i>คำสั่งซื้อของฉัน
+        </h3>
+        <div class="small" style="opacity:.9;margin-top:2px;">
+          ดูสถานะออเดอร์ทั้งหมดของคุณได้จากหน้ารวมเดียว
+        </div>
+      </div>
       <div class="chips">
-        <span class="chip"><i class="bi bi-list-ul me-1"></i> ทั้งหมด <?= (int)$total_orders ?></span>
-        <span class="chip"><i class="bi bi-clock-history me-1"></i> ยืนยันโอนภายใน <?= (int)$minutes_window ?> นาที</span>
+        <span class="chip">
+          <i class="bi bi-list-ul me-1"></i> ทั้งหมด <?= (int)$total_orders ?>
+        </span>
+        <span class="chip">
+          <i class="bi bi-clock-history me-1"></i> ยืนยันโอนภายใน <?= (int)$minutes_window ?> นาที
+        </span>
       </div>
     </div>
 
     <div class="tabs" role="tablist" aria-label="Filters">
-      <a class="tab-btn <?= $statusParam==='all'?'active':'' ?>" href="?status=all">ทั้งหมด (<?= (int)$cnt['all'] ?>)</a>
-      <a class="tab-btn <?= $statusParam==='new'?'active':'' ?>" href="?status=new">ใหม่ (<?= (int)$cnt['new'] ?>)</a>
-      <a class="tab-btn <?= $statusParam==='processing'?'active':'' ?>" href="?status=processing">กำลังดำเนินการ (<?= (int)$cnt['processing'] ?>)</a>
-      <a class="tab-btn <?= $statusParam==='shipped'?'active':'' ?>" href="?status=shipped">ส่งออก (<?= (int)$cnt['shipped'] ?>)</a>
-      <a class="tab-btn <?= $statusParam==='delivered'?'active':'' ?>" href="?status=delivered">จัดส่งแล้ว (<?= (int)$cnt['delivered'] ?>)</a>
-      <a class="tab-btn <?= $statusParam==='completed'?'active':'' ?>" href="?status=completed">เสร็จสิ้น (<?= (int)$cnt['completed'] ?>)</a>
-      <a class="tab-btn <?= $statusParam==='cancelled'?'active':'' ?>" href="?status=cancelled">ยกเลิก (<?= (int)$cnt['cancelled'] ?>)</a>
+      <a class="tab-btn <?= $statusParam==='all'?'active':'' ?>" href="?status=all">
+        ทั้งหมด
+        <span class="badge text-bg-light ms-1"><?= (int)$cnt['all'] ?></span>
+      </a>
+      <a class="tab-btn <?= $statusParam==='new'?'active':'' ?>" href="?status=new">
+        ใหม่
+        <span class="badge text-bg-light ms-1"><?= (int)$cnt['new'] ?></span>
+      </a>
+      <a class="tab-btn <?= $statusParam==='processing'?'active':'' ?>" href="?status=processing">
+        กำลังดำเนินการ
+        <span class="badge text-bg-light ms-1"><?= (int)$cnt['processing'] ?></span>
+      </a>
+      <a class="tab-btn <?= $statusParam==='shipped'?'active':'' ?>" href="?status=shipped">
+        ส่งออก
+        <span class="badge text-bg-light ms-1"><?= (int)$cnt['shipped'] ?></span>
+      </a>
+      <a class="tab-btn <?= $statusParam==='delivered'?'active':'' ?>" href="?status=delivered">
+        จัดส่งแล้ว
+        <span class="badge text-bg-light ms-1"><?= (int)$cnt['delivered'] ?></span>
+      </a>
+      <a class="tab-btn <?= $statusParam==='completed'?'active':'' ?>" href="?status=completed">
+        เสร็จสิ้น
+        <span class="badge text-bg-light ms-1"><?= (int)$cnt['completed'] ?></span>
+      </a>
+      <a class="tab-btn <?= $statusParam==='cancelled'?'active':'' ?>" href="?status=cancelled">
+        ยกเลิก
+        <span class="badge text-bg-light ms-1"><?= (int)$cnt['cancelled'] ?></span>
+      </a>
     </div>
   </div>
 
   <?php if ($total_orders === 0): ?>
-    <div class="alert alert-info shadow-sm mt-3">คุณยังไม่มีคำสั่งซื้อ</div>
+    <div class="alert alert-info shadow-sm mt-3">
+      <i class="bi bi-info-circle me-1"></i> คุณยังไม่มีคำสั่งซื้อ
+    </div>
   <?php else: ?>
     <div class="shell mt-3">
       <!-- toolbar -->
       <div class="toolbar">
-        <div class="input-group" style="max-width:440px">
+        <div class="input-group" style="max-width:420px">
           <span class="input-group-text"><i class="bi bi-search"></i></span>
-          <input type="text" id="q" class="form-control" placeholder="ค้นหา: #ออเดอร์, วันที่, วิธีชำระ, สถานะ, ยอดรวม">
+          <input type="text" id="q" class="form-control" placeholder="ค้นหา #ออเดอร์ / วันที่ / วิธีชำระ / ยอดรวม">
         </div>
-        <button id="btnRefresh" class="btn btn-outline-primary ms-auto">
-          <i class="bi bi-arrow-clockwise"></i> รีเฟรช
+        <button id="btnRefresh" class="btn btn-outline-primary btn-icon ms-auto" title="รีเฟรช">
+          <i class="bi bi-arrow-clockwise"></i>
         </button>
       </div>
 
@@ -222,14 +409,14 @@ $stAgg->close();
         <table class="table table-modern align-middle" id="ordersTable">
           <thead>
             <tr>
-              <th style="min-width:80px">หมายเลขออเดอร์</th>
+              <th style="min-width:90px">หมายเลข</th>
               <th style="min-width:160px">วันที่</th>
               <th style="min-width:130px">ยอดชำระ</th>
               <th style="min-width:140px">วิธีชำระ</th>
-              <th style="min-width:180px">สถานะชำระเงิน</th>
-              <th style="min-width:220px">สถานะคำสั่งซื้อ</th>
-              <th style="min-width:120px">สลิป</th>
-              <th style="min-width:140px"></th>
+              <th style="min-width:170px">สถานะชำระเงิน</th>
+              <th style="min-width:190px">สถานะคำสั่งซื้อ</th>
+              <th style="min-width:110px">สลิป</th>
+              <th style="min-width:120px"></th>
             </tr>
           </thead>
           <tbody>
@@ -241,7 +428,7 @@ $stAgg->close();
             $createdAt = h(date('Y-m-d H:i:s', strtotime($o['created_at'])));
             $oid       = (int)$o['id'];
 
-            $subtotal  = (float)$o['total_amount'];              // ก่อนลด
+            $subtotal  = (float)$o['total_amount'];
             $discount  = max(0.0, (float)($o['discount_total'] ?? 0));
             $payable   = max(0.0, (float)($o['payable_total'] ?? ($subtotal - $discount)));
 
@@ -256,7 +443,7 @@ $stAgg->close();
             ob_start();
             $isExpiredBank = ($isBank && ($o['payment_status'] === 'expired' || $expired));
             if ($isExpiredBank){
-              echo '<span class="badge bg-danger">หมดเวลาชำระ</span><div class="small text-muted">ออเดอร์นี้หมดเวลาชำระแล้ว</div>';
+              echo '<span class="badge bg-danger">หมดเวลาชำระ</span><div class="small-muted">ออเดอร์นี้หมดเวลาชำระแล้ว</div>';
             } elseif ($o['order_status'] === 'completed'){
               echo '<span class="badge bg-success">เสร็จสิ้น</span>';
             } elseif ($o['order_status'] === 'delivered'){
@@ -266,10 +453,13 @@ $stAgg->close();
             } elseif ($o['order_status'] === 'cancel_requested'){
               echo '<span class="badge bg-warning text-dark">รอยืนยันยกเลิก</span>';
               if (!empty($o['cancel_reason'])){
-                echo '<div class="small text-muted">เหตุผล: '.h($o['cancel_reason']).'</div>';
+                echo '<div class="small-muted">เหตุผล: '.h($o['cancel_reason']).'</div>';
               }
             } elseif ($o['order_status'] === 'cancelled'){
               echo '<span class="badge bg-danger">ยกเลิก</span>';
+              if (!empty($o['cancel_reason'])){
+                echo '<div class="small-muted">เหตุผล: '.h($o['cancel_reason']).'</div>';
+              }
             } else {
               echo '<span class="badge bg-info text-dark">ใหม่</span>';
               if (!$isExpiredBank){
@@ -297,17 +487,19 @@ $stAgg->close();
             );
           ?>
             <tr data-status="<?= h(strtolower($o['order_status'])) ?>" data-search="<?= h($searchText) ?>">
-              <td data-label="#">
+              <td data-label="#ออเดอร์">
                 <div class="d-flex align-items-center gap-2">
                   <span class="fw-semibold">#<?= $oid ?></span>
-                  <button class="btn btn-sm btn-outline-secondary copy" data-copy="#<?= $oid ?>" title="คัดลอก"><i class="bi bi-clipboard"></i></button>
+                  <button class="btn btn-sm btn-outline-secondary copy" data-copy="#<?= $oid ?>" title="คัดลอก">
+                    <i class="bi bi-clipboard"></i>
+                  </button>
                 </div>
               </td>
 
               <td data-label="วันที่">
                 <div class="fw-semibold"><?= $createdAt ?></div>
                 <?php if ($isBank): ?>
-                  <div class="small text-muted">
+                  <div class="small-muted">
                     หมดเวลา: <span class="text-danger"><?= $expiresAt ?></span>
                   </div>
                 <?php endif; ?>
@@ -316,7 +508,7 @@ $stAgg->close();
               <td data-label="ยอดชำระ">
                 <div class="fw-semibold"><?= baht($payable) ?> ฿</div>
                 <?php if ($discount > 0.0): ?>
-                  <div class="small text-muted">
+                  <div class="small-muted">
                     <del><?= baht($subtotal) ?> ฿</del> − ส่วนลด <?= baht($discount) ?> ฿
                   </div>
                 <?php endif; ?>
@@ -349,7 +541,9 @@ $stAgg->close();
                 </div>
               </td>
 
-              <td data-label="สถานะคำสั่งซื้อ"><?= $orderStatusHTML ?></td>
+              <td data-label="สถานะคำสั่งซื้อ">
+                <?= $orderStatusHTML ?>
+              </td>
 
               <td data-label="สลิป">
                 <?php if (!empty($o['slip_image'])): ?>
@@ -361,7 +555,7 @@ $stAgg->close();
                     <i class="bi bi-cloud-upload"></i> อัปโหลดสลิป
                   </a>
                 <?php else: ?>
-                  <span class="text-muted">-</span>
+                  <span class="small-muted">-</span>
                 <?php endif; ?>
               </td>
 
@@ -380,7 +574,7 @@ $stAgg->close();
 
       <!-- pagination -->
       <div class="sticky-pagination">
-        <nav aria-label="Page navigation" class="mt-3">
+        <nav aria-label="Page navigation" class="mt-2">
           <ul class="pagination justify-content-center mb-0">
             <?php $qStatus = '&status='.urlencode($statusParam); ?>
             <li class="page-item <?= $page<=1?'disabled':'' ?>">
@@ -457,31 +651,19 @@ document.addEventListener('click', e=>{
 /* refresh button */
 document.getElementById('btnRefresh')?.addEventListener('click', ()=> location.replace('my_orders.php'));
 
-/* client-side filter: tabs + search */
+/* client-side search filter (เบา ๆ) */
 (function(){
   const q = document.getElementById('q');
-  let status = 'all';
-
+  if (!q) return;
   function applyFilter(){
-    const text = (q?.value || '').trim().toLowerCase();
+    const text = (q.value || '').trim().toLowerCase();
     const rows = document.querySelectorAll('#ordersTable tbody tr');
     rows.forEach(tr=>{
-      const s = tr.getAttribute('data-status') || '';
       const searchable = tr.getAttribute('data-search') || '';
-      const okStatus = (status==='all' || s===status);
-      const okText   = (text==='' || searchable.indexOf(text)>-1);
-      tr.style.display = (okStatus && okText) ? '' : 'none';
+      tr.style.display = (!text || searchable.indexOf(text) > -1) ? '' : 'none';
     });
   }
-
-  document.querySelectorAll('.tab-btn').forEach(btn=>{
-    btn.addEventListener('click', (e)=>{
-      // ใช้ลิงก์ server-side อยู่แล้ว ไม่ต้องทำ client filter
-      // ถ้าอยากใช้ client-side ให้ป้องกัน default แล้วตั้ง status จาก data-attr
-    });
-  });
-
-  q?.addEventListener('input', applyFilter);
+  q.addEventListener('input', applyFilter);
 })();
 </script>
 </body>

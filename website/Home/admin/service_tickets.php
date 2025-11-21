@@ -1,5 +1,5 @@
 <?php
-// Home/admin/service_tickets.php (revamped glass UI + effective status/urgency)
+// Home/admin/service_tickets.php (glass UI + status/urgency + payment column)
 if (session_status()===PHP_SESSION_NONE){ session_start(); }
 require __DIR__ . '/../includes/db.php';
 
@@ -22,8 +22,9 @@ if(!empty($_SESSION['user_id'])){
 
 /* ---- filters ---- */
 $q       = trim($_GET['q'] ?? '');
-$status  = trim($_GET['status'] ?? 'all');     // all | queue | checking | waiting_parts | repairing | done | cancelled | confirm
+$status  = trim($_GET['status'] ?? 'all');     // all | queued | checking | waiting_parts | repairing | done | cancelled | confirm
 $urgency = trim($_GET['urgency'] ?? 'all');    // all | normal | urgent
+$pay     = trim($_GET['pay'] ?? 'all');        // all | unpaid | pending | paid
 $from    = trim($_GET['from'] ?? '');
 $to      = trim($_GET['to']   ?? '');
 
@@ -78,6 +79,7 @@ if($q!==''){
 }
 if($status!=='all'){   $count_sql.=" AND S.status_eff=?";   $params[]=$status;  $types.='s'; }
 if($urgency!=='all'){  $count_sql.=" AND S.urgency_eff=?";  $params[]=$urgency; $types.='s'; }
+if($pay!=='all'){      $count_sql.=" AND COALESCE(S.payment_status,'unpaid')=?"; $params[]=$pay; $types.='s'; }
 if($from!==''){        $count_sql.=" AND DATE(S.created_at)>=?"; $params[]=$from; $types.='s'; }
 if($to!==''){          $count_sql.=" AND DATE(S.created_at)<=?"; $params[]=$to;   $types.='s'; }
 $st=$conn->prepare($count_sql); if($params){$st->bind_param($types, ...$params);} $st->execute();
@@ -99,6 +101,7 @@ if($q!==''){
 }
 if($status!=='all'){   $sql.=" AND S.status_eff=?";   $params[]=$status;  $types.='s'; }
 if($urgency!=='all'){  $sql.=" AND S.urgency_eff=?";  $params[]=$urgency; $types.='s'; }
+if($pay!=='all'){      $sql.=" AND COALESCE(S.payment_status,'unpaid')=?"; $params[]=$pay; $types.='s'; }
 if($from!==''){        $sql.=" AND DATE(S.created_at)>=?"; $params[]=$from; $types.='s'; }
 if($to!==''){          $sql.=" AND DATE(S.created_at)<=?"; $params[]=$to;   $types.='s'; }
 $sql.=" ORDER BY S.updated_at DESC, S.id DESC LIMIT ? OFFSET ?";
@@ -116,6 +119,24 @@ $badge_map = [
   'queued' => 'secondary', 'confirm'=>'info text-dark', 'checking'=>'primary',
   'waiting_parts'=>'warning text-dark', 'repairing'=>'primary',
   'done'=>'success', 'cancelled'=>'danger'
+];
+
+/* ---- payment labels ---- */
+$PAY_LABEL = [
+  'unpaid'  => 'ยังไม่ชำระ',
+  'pending' => 'รอตรวจสอบ',
+  'paid'    => 'ชำระแล้ว',
+];
+$PAY_BADGE = [
+  'unpaid'  => 'danger',
+  'pending' => 'warning text-dark',
+  'paid'    => 'success',
+];
+$PAY_METHOD = [
+  'bank'   => 'โอนธนาคาร / พร้อมเพย์',
+  'cash'   => 'เงินสดหน้าร้าน',
+  'wallet' => 'วอลเล็ท',
+  'cod'    => 'เก็บเงินปลายทาง',
 ];
 ?>
 <!doctype html>
@@ -169,6 +190,7 @@ $badge_map = [
           <!-- keep current filters -->
           <input type="hidden" name="status" value="<?= h($status) ?>">
           <input type="hidden" name="urgency" value="<?= h($urgency) ?>">
+          <input type="hidden" name="pay" value="<?= h($pay) ?>">
           <input type="hidden" name="from" value="<?= h($from) ?>">
           <input type="hidden" name="to" value="<?= h($to) ?>">
         </div>
@@ -188,6 +210,7 @@ $badge_map = [
           </div>
           <div class="text-center small text-muted py-2 border-top">อัปเดตอัตโนมัติ</div>
         </div>
+      </div>
       <!-- Theme toggle -->
       <button class="btn btn-outline-secondary" id="themeToggle" title="สลับโหมด">
         <i class="bi bi-moon-stars"></i>
@@ -218,7 +241,8 @@ $badge_map = [
       <div class="chip"><i class="bi bi-lightning-charge-fill me-1"></i> Quick actions</div>
       <div class="mt-2 d-grid gap-2">
         <a class="btn btn-sm btn-primary" href="service_ticket_new.php"><i class="bi bi-plus-circle me-1"></i> เปิดใบคิวใหม่</a>
-        <a class="btn btn-sm btn-outline-primary" href="service_tickets.php?status=queue"><i class="bi bi-list-check me-1"></i> งานเข้าคิว</a>
+        <!-- ใช้ queued ให้ตรงกับ status จริง -->
+        <a class="btn btn-sm btn-outline-primary" href="service_tickets.php?status=queued"><i class="bi bi-list-check me-1"></i> งานเข้าคิว</a>
         <a class="btn btn-sm btn-outline-primary" href="service_tickets.php?status=waiting_parts"><i class="bi bi-gear-wide-connected me-1"></i> รออะไหล่</a>
       </div>
     </div>
@@ -235,7 +259,7 @@ $badge_map = [
           <input class="form-control" name="q" value="<?= h($q) ?>" placeholder="หมายเลข/เบอร์/รุ่น/ยี่ห้อ">
         </div>
         <div class="col-md-2">
-          <label class="form-label">สถานะ</label>
+          <label class="form-label">สถานะใบงาน</label>
           <select class="form-select" name="status">
             <option value="all" <?= $status==='all'?'selected':'' ?>>ทั้งหมด</option>
             <?php foreach($statuses as $k=>$v): ?>
@@ -249,6 +273,15 @@ $badge_map = [
             <option value="all"    <?= $urgency==='all'?'selected':'' ?>>ทั้งหมด</option>
             <option value="normal" <?= $urgency==='normal'?'selected':'' ?>>ปกติ</option>
             <option value="urgent" <?= $urgency==='urgent'?'selected':'' ?>>ด่วน</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">สถานะการชำระเงิน</label>
+          <select class="form-select" name="pay">
+            <option value="all"    <?= $pay==='all'?'selected':'' ?>>ทั้งหมด</option>
+            <option value="unpaid" <?= $pay==='unpaid'?'selected':'' ?>>ยังไม่ชำระ</option>
+            <option value="pending"<?= $pay==='pending'?'selected':'' ?>>รอตรวจสอบ</option>
+            <option value="paid"   <?= $pay==='paid'?'selected':'' ?>>ชำระแล้ว</option>
           </select>
         </div>
         <div class="col-md-2">
@@ -271,24 +304,54 @@ $badge_map = [
         <table class="table align-middle mb-0 table-hover">
           <thead class="table-light">
             <tr>
-              <th>#</th><th style="min-width:260px">ประเภท/รุ่น</th><th>ลูกค้า</th><th>นัดหมาย</th><th>ความเร่งด่วน</th><th>สถานะ</th><th>อัปเดต</th><th></th>
+              <th>#</th>
+              <th style="min-width:260px">ประเภท/รุ่น</th>
+              <th>ลูกค้า</th>
+              <th>นัดหมาย</th>
+              <th>ความเร่งด่วน</th>
+              <th>สถานะใบงาน</th>
+              <th>การชำระเงิน</th>
+              <th>อัปเดต</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
           <?php if(empty($rows)): ?>
-            <tr><td colspan="8" class="text-center text-muted py-4">ไม่พบข้อมูล</td></tr>
+            <tr><td colspan="9" class="text-center text-muted py-4">ไม่พบข้อมูล</td></tr>
           <?php else: foreach($rows as $r): ?>
-            <tr id="row-<?= (int)$r['id'] ?>">
+            <?php
+              $stKey = $r['status_eff'] ?? $r['status'];
+              $payStatus = $r['payment_status'] ?? 'unpaid';
+              if ($payStatus === '' || $payStatus === null) $payStatus = 'unpaid';
+
+              // ยอดแสดงให้ดูคร่าว ๆ (ใช้ final_total ถ้ามี ไม่งั้น fallback estimate_total)
+              $amount = 0.0;
+              if (isset($r['final_total']) && $r['final_total'] !== null) {
+                $amount = (float)$r['final_total'];
+              } elseif (isset($r['estimate_total']) && $r['estimate_total'] !== null) {
+                $amount = (float)$r['estimate_total'];
+              }
+
+              $isDoneNotPaid = ($stKey === 'done' && $payStatus !== 'paid');
+
+              $payMethod = $r['pay_method'] ?? '';
+              $payMethodLabel = $payMethod ? ($PAY_METHOD[$payMethod] ?? $payMethod) : '';
+            ?>
+            <tr id="row-<?= (int)$r['id'] ?>" <?= $isDoneNotPaid? 'style="background:rgba(254,242,242,.7);"' : '' ?>>
               <td>ST-<?= (int)$r['id'] ?></td>
               <td>
                 <div class="fw-semibold"><?= h($r['device_type']) ?> — <?= h($r['brand']) ?> <?= h($r['model']) ?></div>
                 <?php if (!empty($r['issue'])): ?>
-                  <div class="small text-muted ellipsis-1"><i class="bi bi-chat-quote"></i> <?= h(mb_strimwidth($r['issue'],0,110,'…','UTF-8')) ?></div>
+                  <div class="small text-muted ellipsis-1">
+                    <i class="bi bi-chat-quote"></i> <?= h(mb_strimwidth($r['issue'],0,110,'…','UTF-8')) ?>
+                  </div>
                 <?php endif; ?>
               </td>
               <td>
                 <div class="small text-muted">โทร: <?= h($r['phone']) ?></div>
-                <?php if(!empty($r['line_id'])): ?><div class="small text-muted">LINE: <?= h($r['line_id']) ?></div><?php endif; ?>
+                <?php if(!empty($r['line_id'])): ?>
+                  <div class="small text-muted">LINE: <?= h($r['line_id']) ?></div>
+                <?php endif; ?>
               </td>
               <td><?= h($r['desired_date'] ?: '-') ?></td>
               <td>
@@ -299,14 +362,39 @@ $badge_map = [
                 <?php endif; ?>
               </td>
               <td>
-                <?php $stKey=$r['status_eff'] ?? $r['status']; ?>
                 <span class="badge bg-<?= $badge_map[$stKey] ?? 'secondary' ?>">
                   <?= h($statuses[$stKey] ?? $stKey) ?>
                 </span>
+                <?php if($isDoneNotPaid): ?>
+                  <div class="small text-danger">
+                    <i class="bi bi-exclamation-circle"></i> เสร็จแล้ว รอชำระเงิน
+                  </div>
+                <?php endif; ?>
+              </td>
+              <td>
+                <span class="badge bg-<?= $PAY_BADGE[$payStatus] ?? 'secondary' ?>">
+                  <?= h($PAY_LABEL[$payStatus] ?? $payStatus) ?>
+                </span>
+                 
+
+                  <?php if($payMethodLabel): ?>
+                    <div class="small text-muted">
+                      ประเภท: <?= h($payMethodLabel) ?>
+                    </div>
+                  <?php endif; ?>
+<td>
+                <?php if($amount>0): ?>
+                  <div class="small text-muted">ยอด: <?= number_format($amount,2) ?> ฿</div>
+                <?php endif; ?>
+                <?php if(!empty($r['paid_at']) && $payStatus==='paid'): ?>
+                  <div class="small text-muted">จ่ายเมื่อ: <?= h($r['paid_at']) ?></div>
+                <?php endif; ?>
               </td>
               <td class="small text-muted"><?= h($r['updated_at']) ?></td>
               <td class="text-end">
-                <a href="service_ticket_detail.php?id=<?= (int)$r['id'] ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> เปิด</a>
+                <a href="service_ticket_detail.php?id=<?= (int)$r['id'] ?>" class="btn btn-sm btn-outline-primary">
+                  <i class="bi bi-eye"></i> เปิด
+                </a>
               </td>
             </tr>
           <?php endforeach; endif; ?>
@@ -359,45 +447,57 @@ $badge_map = [
   btnTop.addEventListener('click', ()=> window.scrollTo({top:0,behavior:'smooth'}));
 
   /* ===== Notifications ===== */
-const badge   = document.getElementById('notif-badge');
-const listEl  = document.getElementById('notif-list');
-const markBtn = document.getElementById('notif-mark-read');
-function escapeHtml(s){ const d=document.createElement('div'); d.innerText=s||''; return d.innerHTML; }
-function fmtTime(iso){ try{ const d=new Date(iso.replace(' ','T')); return d.toLocaleString(); }catch(e){ return iso; } }
-function linkFor(it){
-  if (it.type === 'cancel_request' && it.ref_id) return `orders.php?status=cancel_requested#row-${it.ref_id}`;
-  if (it.type === 'order_status'   && it.ref_id) return `order_detail.php?id=${it.ref_id}`;
-  if (it.type === 'payment_status' && it.ref_id) return `order_detail.php?id=${it.ref_id}`;
-  if (it.type === 'support_msg') return `support.php`;
-  if (it.type === 'calendar') return `calendar.php`;
-  return 'orders.php';
-}
-function renderItems(items){
-  if(!items || items.length===0){
-    listEl.innerHTML = `<div class="p-3 text-center text-muted">ยังไม่มีการแจ้งเตือน</div>`;
-    return;
+  const badge   = document.getElementById('notif-badge');
+  const listEl  = document.getElementById('notif-list');
+  const markBtn = document.getElementById('notif-mark-read');
+  function escapeHtml(s){ const d=document.createElement('div'); d.innerText=s||''; return d.innerHTML; }
+  function fmtTime(iso){ try{ const d=new Date(iso.replace(' ','T')); return d.toLocaleString(); }catch(e){ return iso; } }
+  function linkFor(it){
+    if (it.type === 'cancel_request' && it.ref_id) return `orders.php?status=cancel_requested#row-${it.ref_id}`;
+    if (it.type === 'order_status'   && it.ref_id) return `order_detail.php?id=${it.ref_id}`;
+    if (it.type === 'payment_status' && it.ref_id) return `order_detail.php?id=${it.ref_id}`;
+    if (it.type === 'support_msg') return `support.php`;
+    if (it.type === 'calendar') return `calendar.php`;
+    return 'orders.php';
   }
-  listEl.innerHTML = items.map(it=>`
-    <a class="dropdown-item d-block ${it.is_read==0?'bg-light':''}" href="${linkFor(it)}">
-      <div class="fw-semibold">${escapeHtml(it.title||'')}</div>
-      ${it.message ? `<div class="small">${escapeHtml(it.message)}</div>` : ''}
-      <div class="small text-muted">${fmtTime(it.created_at)}</div>
-    </a>
-  `).join('');
-}
-async function refreshCount(){
-  try{ const r = await fetch('../notify_api.php?action=count'); const j = await r.json();
-       const c = j.count||0; if(c>0){ badge.classList.remove('d-none'); badge.textContent=c; } else { badge.classList.add('d-none'); }
-  }catch(_){}
-}
-async function refreshList(){
-  try{ const r = await fetch('../notify_api.php?action=list&limit=15'); const j = await r.json(); renderItems(j.items||[]); }catch(_){}
-}
-markBtn?.addEventListener('click', async ()=>{
-  await fetch('../notify_api.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'action=mark_all_read' });
-  refreshCount(); refreshList();
-});
-refreshCount(); refreshList(); setInterval(refreshCount, 30000);
+  function renderItems(items){
+    if(!items || items.length===0){
+      listEl.innerHTML = `<div class="p-3 text-center text-muted">ยังไม่มีการแจ้งเตือน</div>`;
+      return;
+    }
+    listEl.innerHTML = items.map(it=>`
+      <a class="dropdown-item d-block ${it.is_read==0?'bg-light':''}" href="${linkFor(it)}">
+        <div class="fw-semibold">${escapeHtml(it.title||'')}</div>
+        ${it.message ? `<div class="small">${escapeHtml(it.message)}</div>` : ''}
+        <div class="small text-muted">${fmtTime(it.created_at)}</div>
+      </a>
+    `).join('');
+  }
+  async function refreshCount(){
+    try{
+      const r = await fetch('../notify_api.php?action=count');
+      const j = await r.json();
+      const c = j.count||0;
+      if(c>0){ badge.classList.remove('d-none'); badge.textContent=c; }
+      else   { badge.classList.add('d-none'); }
+    }catch(_){}
+  }
+  async function refreshList(){
+    try{
+      const r = await fetch('../notify_api.php?action=list&limit=15');
+      const j = await r.json();
+      renderItems(j.items||[]);
+    }catch(_){}
+  }
+  markBtn?.addEventListener('click', async ()=>{
+    await fetch('../notify_api.php', {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'action=mark_all_read'
+    });
+    refreshCount(); refreshList();
+  });
+  refreshCount(); refreshList(); setInterval(refreshCount, 30000);
 </script>
 </body>
 </html>

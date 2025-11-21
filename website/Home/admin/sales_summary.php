@@ -23,7 +23,7 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to))   $to   = $today;
 $fromTS = $from.' 00:00:00';
 $toTS   = $to.' 23:59:59';
 
-/* ===== small helpers (no type hints for max compatibility) ===== */
+/* ===== small helpers ===== */
 function table_exists($conn, $table){
   $t = $conn->real_escape_string($table);
   $q = $conn->query("SHOW TABLES LIKE '$t'");
@@ -31,7 +31,7 @@ function table_exists($conn, $table){
 }
 
 /* ===== Admin name ===== */
-$admin_id = (int)$_SESSION['user_id'];
+$admin_id   = (int)$_SESSION['user_id'];
 $admin_name = 'admin';
 if ($st = $conn->prepare("SELECT username FROM users WHERE id=? LIMIT 1")){
   $st->bind_param('i', $admin_id);
@@ -40,15 +40,9 @@ if ($st = $conn->prepare("SELECT username FROM users WHERE id=? LIMIT 1")){
   $st->close();
 }
 
-/* -----------------------------------------------------------------------------
-   CORE DATA MODEL (ยอดขายสุทธิต่อออเดอร์)
-   - gross:     ยอดรวมจาก order_items (qty*unit_price)
-   - disc:      ยอดส่วนลดจาก coupon_usages (sum amount ต่อ order)
-   - net:       gross - disc
-   - pm:        payment_method
-   - od:        วันที่สั่งซื้อ (DATE(created_at))
-   เงื่อนไข:    เฉพาะ orders.payment_status = 'paid' และอยู่ในช่วงวันที่
-------------------------------------------------------------------------------*/
+/* -------------------------------------------------------------------------
+   CORE DATA MODEL (ยอดขายสุทธิต่อออเดอร์สินค้า)
+------------------------------------------------------------------------- */
 $hasCouponUsages = table_exists($conn, 'coupon_usages');
 
 $baseSql = "
@@ -87,7 +81,7 @@ $baseSql = "
   ) d ON d.order_id = t.id
 ";
 
-/* ===== KPI รวม ===== */
+/* ===== KPI รวม (สินค้า) ===== */
 $kpi = [
   'revenue_net'   => 0.0,
   'orders_paid'   => 0,
@@ -115,8 +109,34 @@ $avgOrder   = $ordersPaid>0 ? ($revenue/$ordersPaid) : 0.0;
 $discTotal  = (float)$kpi['discount_total'];
 $couponCnt  = (int)$kpi['coupon_orders'];
 
-/* ===== Donut: ยอดขายสุทธิแยกตามวิธีชำระ ===== */
-$byPay = []; // [pm => rev_net]
+/* ===== SUMMARY ค่าบริการซ่อม (service_tickets) ===== */
+$serviceRevenue = 0.0;
+$serviceJobs    = 0;
+
+if (table_exists($conn, 'service_tickets')) {
+  if ($st = $conn->prepare("
+    SELECT 
+      COALESCE(SUM(COALESCE(service_price, estimate_total, 0)),0) AS revenue_service,
+      COUNT(*) AS jobs_paid
+    FROM service_tickets
+    WHERE payment_status = 'paid'
+      AND COALESCE(paid_at, created_at) BETWEEN ? AND ?
+  ")){
+    $st->bind_param('ss', $fromTS, $toTS);
+    $st->execute();
+    $row = $st->get_result()->fetch_assoc();
+    if ($row) {
+      $serviceRevenue = (float)$row['revenue_service'];
+      $serviceJobs    = (int)$row['jobs_paid'];
+    }
+    $st->close();
+  }
+}
+
+$totalAllRevenue = $revenue + $serviceRevenue;
+
+/* ===== Donut: ยอดขายสุทธิแยกตามวิธีชำระ (สินค้า) ===== */
+$byPay = [];
 if ($st = $conn->prepare("
   SELECT pm, COALESCE(SUM(net),0) AS rev_net
   FROM ( $baseSql ) x
@@ -132,7 +152,7 @@ if ($st = $conn->prepare("
   $st->close();
 }
 
-/* ===== Donut: สัดส่วนยอดขายสุทธิจากออเดอร์ที่ใช้คูปอง / ไม่ใช้คูปอง ===== */
+/* ===== Donut: สัดส่วนยอดขายจากคูปอง (สินค้า) ===== */
 $couponShare = ['ไม่มีคูปอง'=>0.0, 'มีคูปอง'=>0.0];
 if ($st = $conn->prepare("
   SELECT 
@@ -148,8 +168,8 @@ if ($st = $conn->prepare("
   $st->close();
 }
 
-/* ===== Line: รายวัน (ยอดสุทธิ + จำนวนออเดอร์) ===== */
-$daily = []; // [{d, rev, orders_cnt}]
+/* ===== Line: รายวัน (สินค้าสุทธิ + จำนวนออเดอร์) ===== */
+$daily = [];
 if ($st = $conn->prepare("
   SELECT od AS d, COALESCE(SUM(net),0) AS rev, COUNT(*) AS orders_cnt
   FROM ( $baseSql ) x
@@ -163,7 +183,34 @@ if ($st = $conn->prepare("
   $st->close();
 }
 
-/* ===== Bar: Top 10 สินค้าขายดี (อิงยอดขายรวมของสินค้า-จากออเดอร์ที่จ่ายแล้ว) ===== */
+/* ===== Line: รายวันค่าบริการซ่อม ===== */
+$serviceDaily = [];
+if (table_exists($conn,'service_tickets')) {
+  if ($st = $conn->prepare("
+    SELECT 
+      DATE(COALESCE(paid_at, created_at)) AS d,
+      COALESCE(SUM(COALESCE(service_price, estimate_total, 0)),0) AS rev
+    FROM service_tickets
+    WHERE payment_status='paid'
+      AND COALESCE(paid_at, created_at) BETWEEN ? AND ?
+    GROUP BY DATE(COALESCE(paid_at, created_at))
+    ORDER BY d ASC
+  ")){
+    $st->bind_param('ss', $fromTS, $toTS);
+    $st->execute();
+    $r = $st->get_result();
+    while($a = $r->fetch_assoc()){ $serviceDaily[] = $a; }
+    $st->close();
+  }
+}
+
+/* ===== Donut: สัดส่วนรายได้ สินค้า vs ค่าบริการ ===== */
+$revMix = [
+  'สินค้า'       => $revenue,
+  'ค่าบริการซ่อม' => $serviceRevenue,
+];
+
+/* ===== Bar: Top 10 สินค้าขายดี ===== */
 $top = [];
 if ($st = $conn->prepare("
   SELECT 
@@ -187,8 +234,8 @@ if ($st = $conn->prepare("
   $st->close();
 }
 
-/* ===== Bar: Top คูปอง (ตามยอดส่วนลดรวม) – ใช้ได้เมื่อมี coupon_usages ===== */
-$couponTop = []; // [{code, disc_sum, uses}]
+/* ===== Bar: Top คูปอง ===== */
+$couponTop = [];
 if ($hasCouponUsages) {
   if ($st = $conn->prepare("
     SELECT 
@@ -212,7 +259,7 @@ if ($hasCouponUsages) {
   }
 }
 
-/* ===== Notifications badge (นับเฉยๆ) ===== */
+/* ===== Notifications badge ===== */
 $noti_unread = 0;
 if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=? AND is_read=0")) {
   $st->bind_param('i', $_SESSION['user_id']);
@@ -332,18 +379,18 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
       </div>
     </form>
 
-    <!-- KPI -->
+    <!-- KPI: สินค้า -->
     <div class="row g-3">
       <div class="col-sm-6 col-lg-3"><div class="kpi p-3">
-        <div class="small">ยอดขายสุทธิ (หลังหักคูปอง)</div>
+        <div class="small">ยอดขายสุทธิสินค้า (หลังหักคูปอง)</div>
         <div class="fs-3 fw-bold"><?= baht($revenue) ?> ฿</div>
       </div></div>
       <div class="col-sm-6 col-lg-3"><div class="kpi p-3">
-        <div class="small">จำนวนออเดอร์ที่จ่ายแล้ว</div>
+        <div class="small">จำนวนออเดอร์สินค้าที่จ่ายแล้ว</div>
         <div class="fs-3 fw-bold"><?= number_format($ordersPaid) ?></div>
       </div></div>
       <div class="col-sm-6 col-lg-3"><div class="kpi p-3">
-        <div class="small">ค่าเฉลี่ย/ออเดอร์ (net)</div>
+        <div class="small">ค่าเฉลี่ยต่อออเดอร์สินค้า (net)</div>
         <div class="fs-3 fw-bold"><?= baht($avgOrder) ?> ฿</div>
       </div></div>
       <div class="col-sm-6 col-lg-3"><div class="kpi p-3">
@@ -353,24 +400,40 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
       </div></div>
     </div>
 
+    <!-- KPI: ค่าบริการซ่อม -->
+    <div class="row g-3">
+      <div class="col-sm-6 col-lg-3"><div class="kpi p-3">
+        <div class="small">ยอดค่าบริการซ่อม (ชำระแล้ว)</div>
+        <div class="fs-3 fw-bold"><?= baht($serviceRevenue) ?> ฿</div>
+      </div></div>
+      <div class="col-sm-6 col-lg-3"><div class="kpi p-3">
+        <div class="small">จำนวนใบงานซ่อมที่ชำระแล้ว</div>
+        <div class="fs-3 fw-bold"><?= number_format($serviceJobs) ?></div>
+      </div></div>
+      <div class="col-sm-6 col-lg-3"><div class="kpi p-3">
+        <div class="small">รายได้รวม (สินค้า + ค่าบริการ)</div>
+        <div class="fs-3 fw-bold"><?= baht($totalAllRevenue) ?> ฿</div>
+      </div></div>
+    </div>
+
     <!-- Charts row 1 -->
     <div class="row g-3">
       <div class="col-xl-4">
         <div class="glass p-3 h-100">
-          <h6 class="mb-3"><i class="bi bi-pie-chart me-2"></i>ยอดขายตามวิธีชำระ (net)</h6>
+          <h6 class="mb-3"><i class="bi bi-pie-chart me-2"></i>ยอดขายสินค้าตามวิธีชำระ (net)</h6>
           <canvas id="chartPay" height="240"></canvas>
         </div>
       </div>
       <div class="col-xl-4">
         <div class="glass p-3 h-100">
-          <h6 class="mb-3"><i class="bi bi-pie-chart-fill me-2"></i>สัดส่วนยอดขายจากคูปอง (net)</h6>
+          <h6 class="mb-3"><i class="bi bi-pie-chart-fill me-2"></i>สัดส่วนยอดขายสินค้าจากคูปอง (net)</h6>
           <canvas id="chartCouponShare" height="240"></canvas>
         </div>
       </div>
       <div class="col-xl-4">
         <div class="glass p-3 h-100">
-          <h6 class="mb-3"><i class="bi bi-graph-up me-2"></i>ยอดขายรายวัน (net)</h6>
-          <canvas id="chartDaily" height="240"></canvas>
+          <h6 class="mb-3"><i class="bi bi-pie-chart-alt me-2"></i>สัดส่วนรายได้ สินค้า vs ค่าบริการ</h6>
+          <canvas id="chartMix" height="240"></canvas>
         </div>
       </div>
     </div>
@@ -379,11 +442,17 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
     <div class="row g-3">
       <div class="col-xl-6">
         <div class="glass p-3 h-100">
-          <h6 class="mb-3"><i class="bi bi-bar-chart-line me-2"></i>Top 10 สินค้าขายดี (paid)</h6>
+          <h6 class="mb-3"><i class="bi bi-graph-up me-2"></i>ยอดขายรายวัน (สินค้า + ค่าบริการ)</h6>
+          <canvas id="chartDaily" height="260"></canvas>
+        </div>
+      </div>
+      <div class="col-xl-3">
+        <div class="glass p-3 h-100">
+          <h6 class="mb-3"><i class="bi bi-bar-chart-line me-2"></i>Top 10 สินค้าขายดี</h6>
           <canvas id="chartTop" height="260"></canvas>
         </div>
       </div>
-      <div class="col-xl-6">
+      <div class="col-xl-3">
         <div class="glass p-3 h-100">
           <h6 class="mb-3"><i class="bi bi-ticket-detailed me-2"></i>Top คูปองตามส่วนลดรวม</h6>
           <canvas id="chartCouponTop" height="260"></canvas>
@@ -422,13 +491,15 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const pay       = <?= json_encode($byPay, JSON_UNESCAPED_UNICODE) ?>;
-  const couponShr = <?= json_encode($couponShare, JSON_UNESCAPED_UNICODE) ?>;
-  const daily     = <?= json_encode($daily, JSON_UNESCAPED_UNICODE) ?>;
-  const top       = <?= json_encode($top,   JSON_UNESCAPED_UNICODE) ?>;
-  const couponTop = <?= json_encode($couponTop, JSON_UNESCAPED_UNICODE) ?>;
+  const pay          = <?= json_encode($byPay,        JSON_UNESCAPED_UNICODE) ?>;
+  const couponShr    = <?= json_encode($couponShare,  JSON_UNESCAPED_UNICODE) ?>;
+  const daily        = <?= json_encode($daily,        JSON_UNESCAPED_UNICODE) ?>;
+  const serviceDaily = <?= json_encode($serviceDaily, JSON_UNESCAPED_UNICODE) ?>;
+  const top          = <?= json_encode($top,          JSON_UNESCAPED_UNICODE) ?>;
+  const couponTop    = <?= json_encode($couponTop,    JSON_UNESCAPED_UNICODE) ?>;
+  const revMix       = <?= json_encode($revMix,       JSON_UNESCAPED_UNICODE) ?>;
 
-  // Donut: by payment method (net)
+  // Donut: by payment method (สินค้า)
   (function(){
     const el = document.getElementById('chartPay'); if(!el) return;
     const labels = Object.keys(pay).length ? Object.keys(pay) : ['ไม่มีข้อมูล'];
@@ -440,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   })();
 
-  // Donut: coupon share (net)
+  // Donut: coupon share (สินค้า)
   (function(){
     const el = document.getElementById('chartCouponShare'); if(!el) return;
     const labels = Object.keys(couponShr).length ? Object.keys(couponShr) : ['ไม่มีข้อมูล'];
@@ -452,24 +523,56 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   })();
 
-  // Line: daily (net + count)
+  // Donut: สัดส่วนรายได้ สินค้า vs ค่าบริการ
+  (function(){
+    const el = document.getElementById('chartMix'); if(!el) return;
+    const labels = Object.keys(revMix);
+    const data   = Object.values(revMix);
+    new Chart(el, {
+      type:'doughnut',
+      data:{ labels, datasets:[{ data }] },
+      options:{ plugins:{ legend:{ position:'bottom' } }, cutout:'65%' }
+    });
+  })();
+
+  // Line: daily product + service + order count
   (function(){
     const el = document.getElementById('chartDaily'); if(!el) return;
-    const labels = daily.length ? daily.map(x=>x.d) : ['ไม่มีข้อมูล'];
-    const rev    = daily.length ? daily.map(x=>Number(x.rev||0)) : [0];
-    const cnt    = daily.length ? daily.map(x=>Number(x.orders_cnt||0)) : [0];
+
+    const prodMap = new Map();
+    daily.forEach(x => prodMap.set(x.d, { rev:Number(x.rev||0), cnt:Number(x.orders_cnt||0) }));
+
+    const servMap = new Map();
+    serviceDaily.forEach(x => servMap.set(x.d, { rev:Number(x.rev||0) }));
+
+    const datesSet = new Set([
+      ...daily.map(x => x.d),
+      ...serviceDaily.map(x => x.d)
+    ]);
+    let labels = Array.from(datesSet);
+    if (!labels.length) labels = ['ไม่มีข้อมูล'];
+    else labels.sort(); // YYYY-MM-DD sort lexicographically ได้
+
+    const revProd = labels.map(d => prodMap.get(d)?.rev ?? 0);
+    const revServ = labels.map(d => servMap.get(d)?.rev ?? 0);
+    const cntProd = labels.map(d => prodMap.get(d)?.cnt ?? 0);
+
     new Chart(el, {
       type:'line',
       data:{
         labels,
         datasets:[
-          { label:'ยอดขาย (บาท, net)', data:rev, tension:.3, fill:false },
-          { label:'จำนวนออเดอร์', data:cnt, yAxisID:'y2', tension:.3, fill:false }
+          { label:'ยอดขายสินค้า (บาท, net)',   data:revProd, tension:.3, fill:false },
+          { label:'ค่าบริการซ่อม (บาท)',       data:revServ, tension:.3, fill:false },
+          { label:'จำนวนออเดอร์สินค้า',        data:cntProd, yAxisID:'y2', tension:.3, fill:false }
         ]
       },
       options:{
         interaction:{ mode:'index', intersect:false },
-        scales:{ y:{ beginAtZero:true }, y2:{ beginAtZero:true, position:'right', grid:{drawOnChartArea:false} } },
+        scales:{
+          y : { beginAtZero:true, title:{ display:true, text:'ยอดเงิน (บาท)' } },
+          y2: { beginAtZero:true, position:'right', grid:{drawOnChartArea:false}, title:{ display:true, text:'จำนวนออเดอร์'} }
+        },
         plugins:{ legend:{ position:'bottom' } }
       }
     });
@@ -500,7 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
   })();
 });
 
-/* ===== Notifications (เหมือนหน้าอื่น ๆ) ===== */
+/* ===== Notifications ===== */
 const badge   = document.getElementById('notif-badge');
 const listEl  = document.getElementById('notif-list');
 const markBtn = document.getElementById('notif-mark-read');
@@ -545,7 +648,11 @@ async function refreshList(){
   }
 }
 markBtn?.addEventListener('click', async ()=>{
-  await fetch('../notify_api.php', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'action=mark_all_read'});
+  await fetch('../notify_api.php', {
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'action=mark_all_read'
+  });
   refreshCount(); refreshList();
 });
 refreshCount(); refreshList(); setInterval(refreshCount, 30000);

@@ -104,6 +104,21 @@ $bank_pending = (int)$conn->query("
     )
 ")->fetch_assoc()['c'];
 
+/* ===== งานซ่อมที่รอตรวจสอบชำระเงิน ===== */
+$repair_bank_pending = 0;
+if (table_exists($conn, 'service_tickets') && has_col($conn,'service_tickets','payment_status')) {
+
+  // เผื่อบางสคีมาไม่มี payment_method ก็จะเช็คเฉพาะ payment_status แทน
+  $where = "payment_status='pending'";
+  if (has_col($conn,'service_tickets','payment_method')) {
+    $where .= " AND payment_method='bank'";
+  }
+
+  if ($res = $conn->query("SELECT COUNT(*) c FROM service_tickets WHERE $where")) {
+    $repair_bank_pending = (int)($res->fetch_assoc()['c'] ?? 0);
+  }
+}
+
 /* ===== Sales this month ===== */
 $revenueMonth = 0.00;
 $res = $conn->query("
@@ -624,18 +639,32 @@ if ($st = $conn->prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id=
         </div>
       </div>
       <div class="col-sm-6 col-xl-2">
-        <div class="glass p-3 kpi h-100 kpi-soft">
-          <div class="d-flex align-items-center gap-3">
-            <div class="icon" style="background:#f59e0b"><i class="bi bi-bank2"></i></div>
-            <div>
-              <div class="text-muted small">ชำระธนาคาร</div>
-              <div class="fs-3 fw-bold"><?= number_format($bank_pending) ?></div>
-              <div class="small text-secondary">รอตรวจสลิป</div>
-            </div>
-          </div>
-        </div>
+  <div class="glass p-3 kpi h-100 kpi-soft">
+    <div class="d-flex align-items-center gap-3">
+      <div class="icon" style="background:#f59e0b"><i class="bi bi-bank2"></i></div>
+      <div>
+        <div class="text-muted small">ชำระธนาคาร (ออเดอร์)</div>
+        <div class="fs-3 fw-bold"><?= number_format($bank_pending) ?></div>
+        <div class="small text-secondary">รอตรวจสลิป</div>
       </div>
-      <div class="col-sm-6 col-xl-4">
+    </div>
+  </div>
+</div>
+
+<div class="col-sm-6 col-xl-2">
+  <div class="glass p-3 kpi h-100 kpi-soft">
+    <div class="d-flex align-items-center gap-3">
+      <div class="icon" style="background:#4b5563"><i class="bi bi-wrench-adjustable"></i></div>
+      <div>
+        <div class="text-muted small">งานซ่อมรอตรวจ</div>
+        <div class="fs-3 fw-bold"><?= number_format($repair_bank_pending) ?></div>
+        <div class="small text-secondary">รอตรวจสอบการชำระเงินงานซ่อม</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+      <div class="col-sm-6 col-xl-2">
     <div class="glass p-3 kpi h-100 kpi-soft">
       <div class="d-flex align-items-center gap-3">
         <div class="icon" style="background:#8b5cf6"><i class="bi bi-ticket-perforated"></i></div>

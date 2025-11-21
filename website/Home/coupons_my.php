@@ -30,9 +30,10 @@ $cols = [
   (has_col($conn,'coupons','uses_limit')      ? "COALESCE(uses_limit,0)      AS uses_limit"      : "0 AS uses_limit"),
   (has_col($conn,'coupons','per_user_limit')  ? "COALESCE(per_user_limit,0)  AS per_user_limit"  : "0 AS per_user_limit"),
   (has_col($conn,'coupons','used_count')      ? "COALESCE(used_count,0)      AS used_count"      : "0 AS used_count"),
-  (has_col($conn,'coupons','segment')         ? "segment" : "'personal' AS segment"),
-  (has_col($conn,'coupons','note')            ? "note"    : "NULL AS note"),
-  (has_col($conn,'coupons','tradein_id')      ? "tradein_id" : "NULL AS tradein_id")
+  (has_col($conn,'coupons','segment')         ? "segment"                    : "'personal' AS segment"),
+  (has_col($conn,'coupons','note')            ? "note"                       : "NULL AS note"),
+  (has_col($conn,'coupons','tradein_id')      ? "tradein_id"                 : "NULL AS tradein_id"),
+  (has_col($conn,'coupons','applies_to')      ? "applies_to"                 : "'all' AS applies_to"),
 ];
 
 $hasSegment = has_col($conn,'coupons','segment');
@@ -80,6 +81,7 @@ if (table_exists($conn,'coupon_usages') && !empty($rows)) {
   }
 }
 
+
 /* ----- จัดหมวดหมู่: ใช้ได้ / ใช้งานแล้ว / ใช้ครบ / หมดอายุ ----- */
 $now = time();
 $usable = [];        // ใช้ได้ตอนนี้
@@ -117,7 +119,9 @@ foreach ($rows as $c) {
 
 include __DIR__.'/includes/header.php';
 ?>
-
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
 <style>
   :root{ --bg:#f7fafc; --card:#ffffff; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --pri:#2563eb; --pri-weak:#e8efff; --good:#16a34a; --warn:#f59e0b; --bad:#ef4444; }
   body{ background:linear-gradient(180deg,#f8fbff,#f6f8fb 45%,#f5f7fa); }
@@ -158,47 +162,36 @@ include __DIR__.'/includes/header.php';
   .fade-in{ animation:fade .25s ease; } @keyframes fade{ from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:translateY(0)} }
   .small-muted{ color:var(--muted); font-size:.85rem;} .pointer{ cursor:pointer; }
   .ticket .band{ position:relative; z-index:2; }
-.ticket .band .code{ position:relative; z-index:3; }
-.ribbon{ pointer-events:none; z-index:1; right:-36px; top:8px; }
+  .ticket .band .code{ position:relative; z-index:3; }
+  .ribbon{ pointer-events:none; z-index:1; right:-36px; top:8px; }
 
-/* 2) กันริบบอนบังเนื้อหา โดยเพิ่มพื้นที่ด้านขวาเล็กน้อยบนแถบหัว */
-.ticket .band{ padding-right:72px; }
+  .ticket .band{ padding-right:72px; }
+  .ticket .band{
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:8px 12px; flex-wrap:wrap;
+  }
+  .ticket .band .value{
+    flex:1 1 260px; min-width:0; line-height:1.1;
+    display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+  }
+  .ticket .band .code{
+    flex:0 0 auto;
+    white-space:nowrap;
+    background:rgba(255,255,255,.18);
+    padding:6px 10px; border-radius:999px;
+  }
+  .ticket .band .value .chip{
+    display:inline-flex; align-items:center; height:26px;
+    padding:4px 10px; line-height:1; white-space:nowrap;
+  }
+  .cut{ margin-top:0; }
+  .ticket:before, .ticket:after{ top:66px; }
 
-/* 3) จัดแถวหัวคูปองให้ยืดหยุ่น + อยู่บรรทัดเดียวเมื่อพื้นที่พอ
-      และแตกบรรทัดอย่างสวยงามเมื่อจอแคบ */
-.ticket .band{
-  display:flex; align-items:flex-start; justify-content:space-between;
-  gap:8px 12px; flex-wrap:wrap;
-}
-.ticket .band .value{
-  flex:1 1 260px; min-width:0; line-height:1.1;
-  display:flex; flex-wrap:wrap; align-items:center; gap:8px;
-}
-.ticket .band .code{
-  flex:0 0 auto;
-  white-space:nowrap; /* ไม่ตัดรหัส */
-  background:rgba(255,255,255,.18);
-  padding:6px 10px; border-radius:999px;
-}
-
-/* 4) ปรับชิป TR ให้สูงคงที่ ไม่ตกบรรทัดแปลก ๆ */
-.ticket .band .value .chip{
-  display:inline-flex; align-items:center; height:26px;
-  padding:4px 10px; line-height:1; white-space:nowrap;
-}
-
-/* 5) กันเนื้อหาแนวตั้งชนเส้นหยัก/รูกัดบัตร เมื่อหัวสูงขึ้น */
-.cut{ margin-top:0; }
-.ticket:before, .ticket:after{ top:66px; } /* เดิม 58px ถ้าหัวสูงขึ้นจะพอดีขึ้น */
-
-/* 6) จอเล็ก: วางรหัสลงบรรทัดใหม่อย่างตั้งใจ ไม่อึดอัด */
-@media (max-width: 480px){
-  .ticket .band{ padding-right:56px; }
-  .ticket .band .code{ width:100%; text-align:left; }
-}
-
-/* 7) เก็บดีเทลเล็ก ๆ ให้hoverชัดขึ้นแต่ไม่เปลี่ยนพฤติกรรม */
-.ticket .band .code:hover{ filter:brightness(1.06); }
+  @media (max-width: 480px){
+    .ticket .band{ padding-right:56px; }
+    .ticket .band .code{ width:100%; text-align:left; }
+  }
+  .ticket .band .code:hover{ filter:brightness(1.06); }
 </style>
 
 <div class="container py-4">
@@ -224,33 +217,57 @@ include __DIR__.'/includes/header.php';
     <?php
       function renderTicket($c, $status='usable'){
         $badgeType = (strtolower($c['type'])==='percent') ? 'เปอร์เซ็นต์' : 'มูลค่า';
-        $valTxt    = (strtolower($c['type'])==='percent') ? rtrim(rtrim(number_format((float)$c['value'],2),'0'),'.').'%' : baht($c['value']).' ฿';
+        $valTxt    = (strtolower($c['type'])==='percent')
+                      ? rtrim(rtrim(number_format((float)$c['value'],2),'0'),'.').'%' 
+                      : baht($c['value']).' ฿';
         $minTxt    = ((float)$c['min_order_total']>0) ? 'ขั้นต่ำ '.baht($c['min_order_total']).' ฿' : 'ไม่มีขั้นต่ำ';
         $expTxt    = !empty($c['ends_at']) ? date('d M Y H:i', strtotime($c['ends_at'])) : '-';
-        $segTxt    = (!empty($c['segment']) && $c['segment']==='all') ? 'ทุกคน' : 'ส่วนบุคคล';
+
+        // ใช้กับอะไร (จาก applies_to)
+        $applies = strtolower($c['applies_to'] ?? 'all');
+        switch ($applies) {
+          case 'products':
+            $useTxt = 'สินค้า';
+            break;
+          case 'services':
+            $useTxt = 'ค่าบริการ';
+            break;
+          case 'tradein':
+            $useTxt = 'เทิร์นสินค้า';
+            break;
+          case 'all':
+          default:
+            $useTxt = 'ได้ทั้งหมด';
+            break;
+        }
+
         $note      = trim((string)($c['note'] ?? ''));
-        $isTrade   = !empty($c['tradein_id']);
         $rbClass   = $status==='usable' ? 'rb-usable' : ($status==='exhaust' ? 'rb-exhaust' : 'rb-expired');
         $rbText    = $status==='usable' ? 'พร้อมใช้' : ($status==='exhaust' ? 'ใช้ครบ' : 'หมดอายุ/ปิด');
         ?>
         <div class="ticket fade-in" data-code="<?=h($c['code'])?>">
           <div class="ribbon <?=$rbClass?>"><?=$rbText?></div>
+
           <div class="band">
             <div class="value">
               <?=$valTxt?> <span style="font-size:.95rem;font-weight:600"> (<?=$badgeType?>)</span>
-              <?php if($isTrade): ?><span class="chip ms-2">เครดิตเทิร์น TR-<?= (int)$c['tradein_id'] ?></span><?php endif; ?>
             </div>
-            <div class="code pointer" title="คัดลอกรหัส"><?=h($c['code'])?></div>
+            <div class="code pointer"><?=h($c['code'])?></div>
           </div>
+
           <div class="cut"></div>
           <div class="body">
             <div class="meta">
-              <span class="chip"><i class="bi bi-people me-1"></i>ใช้กับ: <?=h($segTxt)?></span>
+              <span class="chip"><i class="bi bi-ui-checks me-1"></i>ใช้กับ: <?=h($useTxt)?></span>
               <span class="chip"><i class="bi bi-cash-coin me-1"></i><?=$minTxt?></span>
               <span class="chip"><i class="bi bi-hourglass-split me-1"></i>หมดอายุ: <?=$expTxt?></span>
             </div>
-            <?php if($note!==''): ?><div class="small-muted mt-2"><i class="bi bi-info-circle me-1"></i><?=h($note)?></div><?php endif; ?>
+
+            <?php if($note!==''): ?>
+              <div class="small-muted mt-2"><i class="bi bi-info-circle me-1"></i><?=h($note)?></div>
+            <?php endif; ?>
           </div>
+
           <div class="foot">
             <button class="btn btn-ghost btn-sm" data-copy="<?=h($c['code'])?>"><i class="bi bi-clipboard"></i> คัดลอกรหัส</button>
             <a class="btn btn-pri btn-sm" href="checkout.php?apply=<?=urlencode($c['code'])?>"><i class="bi bi-cart-check"></i> ใช้ที่ Checkout</a>
@@ -261,17 +278,20 @@ include __DIR__.'/includes/header.php';
     ?>
 
     <div id="tab-usable" class="coupon-grid" role="tabpanel">
-      <?php if(empty($usable)): ?><div class="empty"><div class="emoji">🕊️</div><div class="small-muted">ยังไม่มีคูปองที่พร้อมใช้งาน</div></div>
+      <?php if(empty($usable)): ?>
+        <div class="empty"><div class="emoji">🕊️</div><div class="small-muted">ยังไม่มีคูปองที่พร้อมใช้งาน</div></div>
       <?php else: foreach($usable as $c){ renderTicket($c,'usable'); } endif; ?>
     </div>
 
     <div id="tab-exhaust" class="coupon-grid d-none" role="tabpanel" aria-hidden="true">
-      <?php if(empty($exhausted)): ?><div class="empty"><div class="emoji">📈</div><div class="small-muted">ยังไม่มีคูปองที่ใช้ครบตามเงื่อนไข</div></div>
+      <?php if(empty($exhausted)): ?>
+        <div class="empty"><div class="emoji">📈</div><div class="small-muted">ยังไม่มีคูปองที่ใช้ครบตามเงื่อนไข</div></div>
       <?php else: foreach($exhausted as $c){ renderTicket($c,'exhaust'); } endif; ?>
     </div>
 
     <div id="tab-expired" class="coupon-grid d-none" role="tabpanel" aria-hidden="true">
-      <?php if(empty($expired)): ?><div class="empty"><div class="emoji">⏳</div><div class="small-muted">ยังไม่มีคูปองหมดอายุหรือปิดใช้งาน</div></div>
+      <?php if(empty($expired)): ?>
+        <div class="empty"><div class="emoji">⏳</div><div class="small-muted">ยังไม่มีคูปองหมดอายุหรือปิดใช้งาน</div></div>
       <?php else: foreach($expired as $c){ renderTicket($c,'expired'); } endif; ?>
     </div>
 

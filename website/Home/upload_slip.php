@@ -1,4 +1,4 @@
-<?php
+<?php 
 // Home/upload_slip.php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require __DIR__ . '/includes/db.php';
@@ -222,79 +222,327 @@ $seconds_to_redirect = 8;
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    /* ====== ส่วนหน้าปกติ (QR + ฟอร์ม) ====== */
-    body{background:#f6f8fb}
-    .grid{display:grid;gap:1rem;grid-template-columns:1fr}
-    @media (min-width:992px){.grid{grid-template-columns:1.1fr .9fr}}
-    .qr-card{border-radius:16px;border:1px solid #e9eef3;background:linear-gradient(180deg,#fff 0%,#f7faff 100%);overflow:hidden}
-    .qr-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #eef2f6;background:#fbfdff}
-    .qr-badge{background:#e8f1ff;border:1px solid #bcd4ff;color:#0b5ed7;border-radius:999px;padding:.35rem .75rem;font-weight:600}
-    .muted{color:#6b7280}
-    .qr-wrap{position:relative;width:280px;min-height:280px;margin:16px auto; padding-top:18px}
-    .qr-img{position:relative;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;border:1px solid #e9edf3;box-shadow:0 10px 30px rgba(2,6,23,.08); min-height:280px}
-    .qr-img img{width:100%;height:100%;object-fit:contain;border-radius:10px;padding:6px}
-    .disabled-cover{position:absolute;inset:0;background:rgba(255,255,255,.88);display:flex;align-items:center;justify-content:center;font-weight:700;border-radius:0}
-    .card{border-radius:16px;border:1px solid #e9eef3}
+    /* ====== Global / Layout (ฟ้า-ขาว) ====== */
+    body.bg-page{
+      min-height:100vh;
+      margin:0;
+      background:
+        radial-gradient(circle at top left, #e0f2ff 0, #f5f9ff 45%, #ffffff 80%);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color:#0f172a;
+    }
+    .page-shell{
+      max-width:1120px;
+    }
+    .page-header{
+      display:flex;
+      flex-wrap:wrap;
+      gap:.75rem 1.5rem;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:1.25rem;
+    }
+    .page-title{
+      font-size:1.4rem;
+      font-weight:700;
+      display:flex;
+      align-items:center;
+      gap:.5rem;
+    }
+    .page-title i{
+      font-size:1.5rem;
+      color:#0d6efd;
+    }
+    .page-sub{
+      font-size:.9rem;
+      color:#64748b;
+    }
+    .page-meta{
+      text-align:right;
+      font-size:.85rem;
+    }
+    .page-meta strong{
+      display:block;
+      font-size:.95rem;
+    }
+    .page-meta .badge-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:.35rem;
+      border-radius:999px;
+      padding:.25rem .7rem;
+      border:1px solid #c7ddff;
+      background:#e8f1ff;
+      color:#1d4ed8;
+      font-weight:600;
+      margin-top:.25rem;
+    }
 
-    /* ====== ตัวจับเวลาแบบใหม่ ====== */
+    /* ====== Grid หลัก ====== */
+    .grid{display:grid;gap:1.25rem;grid-template-columns:1fr}
+    @media (min-width:992px){.grid{grid-template-columns:1.1fr .9fr}}
+
+    /* ====== QR Card & Timer ====== */
+    .qr-card{
+      border-radius:18px;
+      border:1px solid #e1ebf7;
+      background:linear-gradient(180deg,#ffffff 0%,#f6f9ff 100%);
+      overflow:hidden;
+      box-shadow:0 16px 40px rgba(15,23,42,.07);
+      position:relative;
+    }
+    .qr-head{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:14px 18px;
+      border-bottom:1px solid #e5edf8;
+      background:linear-gradient(90deg,#ffffff,#f3f7ff);
+    }
+    .qr-badge{
+      background:#e2f0ff;
+      border:1px solid #bed8ff;
+      color:#0b5ed7;
+      border-radius:999px;
+      padding:.35rem .9rem;
+      font-weight:600;
+      font-size:.85rem;
+      display:inline-flex;
+      align-items:center;
+      gap:.35rem;
+    }
+    .qr-badge i{font-size:1rem;}
+    .muted{color:#6b7280}
+    .qr-wrap{position:relative;width:100%;max-width:320px;min-height:280px;margin:18px auto 8px; padding-top:22px}
+    .qr-img{
+      position:relative;
+      border-radius:16px;
+      background:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border:1px solid #e3ebf5;
+      box-shadow:0 14px 36px rgba(15,23,42,.14);
+      min-height:280px;
+    }
+    .qr-img img{width:100%;height:100%;object-fit:contain;border-radius:14px;padding:8px}
+    .disabled-cover{
+      position:absolute;inset:0;
+      background:rgba(248,250,252,.96);
+      display:flex;align-items:center;justify-content:center;
+      font-weight:700;
+      border-radius:0;
+      color:#64748b;
+      text-align:center;
+    }
+
+    /* ====== Time pill + bar ====== */
     .time-pill{
       position:absolute; left:50%; transform:translateX(-50%);
-      top:-10px; background:#0b5ed7; color:#fff;
-      padding:.35rem .75rem; border-radius:999px;
-      font-weight:700; font-size:.95rem; box-shadow:0 6px 20px rgba(13,110,253,.18);
-      display:inline-flex; align-items:center; gap:.25rem; z-index:2;
-      border:1px solid rgba(255,255,255,.6);
+      top:-14px; background:#0b5ed7; color:#fff;
+      padding:.35rem .9rem; border-radius:999px;
+      font-weight:700; font-size:.9rem;
+      box-shadow:0 6px 20px rgba(13,110,253,.25);
+      display:inline-flex; align-items:center; gap:.35rem; z-index:2;
+      border:1px solid rgba(255,255,255,.7);
     }
-    .timebar{height:10px; background:#eef2f7; border:1px solid #e5ecf6;
-      border-radius:999px; overflow:hidden; box-shadow:inset 0 1px 2px rgba(0,0,0,.03);
+    .time-pill i{font-size:1rem;}
+    .timebar{
+      height:9px; background:#eef2f7; border:1px solid #e3ebf6;
+      border-radius:999px; overflow:hidden;
+      box-shadow:inset 0 1px 2px rgba(15,23,42,.05);
+      margin-top:10px;
     }
     .timebar-fill{
       height:100%;
-      background:linear-gradient(90deg, var(--bs-primary,#0d6efd), var(--bs-info,#0dcaf0));
+      background:linear-gradient(90deg,#0d6efd,#38bdf8);
       width:0%;
       transition:width .25s linear;
     }
 
-    /* ====== ส่วน “อัปโหลดสำเร็จ → รอตรวจสอบ” ====== */
+    /* ====== Upload Card ====== */
+    .card{
+      border-radius:18px;
+      border:1px solid #e1ebf7;
+      box-shadow:0 14px 40px rgba(15,23,42,.06);
+    }
+    .card-title{
+      display:flex;
+      align-items:center;
+      gap:.5rem;
+      font-weight:700;
+    }
+    .card-title i{
+      color:#0d6efd;
+      font-size:1.2rem;
+    }
+    .upload-zone{
+      border-radius:14px;
+      border:1px dashed #cbd5e1;
+      background:radial-gradient(circle at top,#f5f9ff, #ffffff);
+      padding:1rem 1.1rem;
+    }
+    .upload-zone:hover{
+      border-style:solid;
+      border-color:#93c5fd;
+      box-shadow:0 0 0 1px #bfdbfe;
+    }
+    .upload-hint{
+      font-size:.8rem;
+      color:#6b7280;
+    }
+    .order-mini{
+      border-radius:14px;
+      padding:.85rem .9rem;
+      background:#f8fafc;
+      border:1px solid #e2e8f0;
+      font-size:.87rem;
+    }
+    .badge-status{
+      border-radius:999px;
+      padding:.18rem .6rem;
+      font-size:.75rem;
+      font-weight:600;
+    }
+
+    /* ====== ส่วน “อัปโหลดสำเร็จ → รอตรวจสอบ” (เดิม) ====== */
     :root{ --brand: var(--bs-primary, #0d6efd); --brand-2: var(--bs-success, #198754); --accent: var(--bs-info, #0dcaf0); }
     .success-wrap{ display:grid; place-items:center; min-height:60vh; }
-    .cardx{ background:#fff; border:1px solid #e9eef5; border-radius:20px; overflow:hidden; box-shadow:0 20px 60px rgba(16,24,40,.08); width:min(900px,94vw); }
-    .head{ padding:16px 20px; border-bottom:1px solid #eef2f6; display:flex; gap:12px; align-items:center; background:linear-gradient(180deg,#ffffff,#fafcff); }
-    .pill{ margin-left:auto; background:#f1f5ff; border:1px solid color-mix(in oklab, var(--brand) 30%, #bcd4ff); padding:.42rem .8rem; border-radius:999px; font-weight:600; }
-    .ring{ width:150px; height:150px; border-radius:50%; position:relative; background: conic-gradient(var(--brand) 0deg, #e9eef5 0deg); display:grid; place-items:center; animation:sweep 1.1s ease-out forwards; box-shadow:0 0 0 8px #fff, 0 16px 40px color-mix(in oklab, var(--brand) 25%, transparent); }
-    .ring::after{ content:""; position:absolute; inset:10px; border-radius:50%; background:#fff; }
-    .check{ position:relative; z-index:1; width:66px; height:66px; border-radius:50%; display:grid; place-items:center; background: radial-gradient(var(--brand), var(--brand-2)); color:white; font-size:34px; box-shadow:0 10px 26px color-mix(in oklab, var(--brand) 45%, transparent); animation:pop .7s cubic-bezier(.2,.7,.2,1.2) .55s both; }
-    @keyframes sweep{ from{ background:conic-gradient(var(--brand) 0deg,#e9eef5 0deg);} to{ background:conic-gradient(var(--brand) 360deg,#e9eef5 360deg);} }
-    @keyframes pop{ 0%{ transform:scale(.4); opacity:0 } 60%{ transform:scale(1.08) } 100%{ transform:scale(1); opacity:1 } }
-    .progressbar{ height:8px; background:#eef2f7; border:1px solid #e5ecf6; border-radius:999px; overflow:hidden; }
-    .progressbar > div{ height:100%; width:0%; background:linear-gradient(90deg, var(--brand), var(--accent)); transition:width .25s linear; }
+    .cardx{
+      background:#fff;
+      border:1px solid #e1ebf7;
+      border-radius:22px;
+      overflow:hidden;
+      box-shadow:0 24px 70px rgba(15,23,42,.12);
+      width:min(900px,94vw);
+    }
+    .head{
+      padding:16px 20px;
+      border-bottom:1px solid #eef2f6;
+      display:flex;
+      gap:12px;
+      align-items:center;
+      background:linear-gradient(180deg,#ffffff,#f4f8ff);
+    }
+    .pill{
+      margin-left:auto;
+      background:#f1f5ff;
+      border:1px solid color-mix(in oklab, var(--brand) 30%, #bcd4ff);
+      padding:.42rem .8rem;
+      border-radius:999px;
+      font-weight:600;
+      font-size:.8rem;
+      display:flex;
+      align-items:center;
+      gap:.25rem;
+    }
+    .ring{
+      width:150px; height:150px;
+      border-radius:50%;
+      position:relative;
+      background: conic-gradient(var(--brand) 0deg, #e9eef5 0deg);
+      display:grid; place-items:center;
+      animation:sweep 1.1s ease-out forwards;
+      box-shadow:0 0 0 8px #fff, 0 16px 40px color-mix(in oklab, var(--brand) 25%, transparent);
+    }
+    .ring::after{
+      content:""; position:absolute; inset:10px;
+      border-radius:50%; background:#fff;
+    }
+    .check{
+      position:relative; z-index:1;
+      width:66px; height:66px;
+      border-radius:50%; display:grid; place-items:center;
+      background: radial-gradient(var(--brand), var(--brand-2));
+      color:white; font-size:34px;
+      box-shadow:0 10px 26px color-mix(in oklab, var(--brand) 45%, transparent);
+      animation:pop .7s cubic-bezier(.2,.7,.2,1.2) .55s both;
+    }
+    @keyframes sweep{
+      from{ background:conic-gradient(var(--brand) 0deg,#e9eef5 0deg);}
+      to{ background:conic-gradient(var(--brand) 360deg,#e9eef5 360deg);}
+    }
+    @keyframes pop{
+      0%{ transform:scale(.4); opacity:0 }
+      60%{ transform:scale(1.08) }
+      100%{ transform:scale(1); opacity:1 }
+    }
+    .progressbar{
+      height:8px;
+      background:#eef2f7;
+      border:1px solid #e5ecf6;
+      border-radius:999px;
+      overflow:hidden;
+    }
+    .progressbar > div{
+      height:100%; width:0%;
+      background:linear-gradient(90deg, var(--brand), var(--accent));
+      transition:width .25s linear;
+    }
     .confetti{ position:fixed; inset:0; pointer-events:none; overflow:hidden; }
-    .confetti span{ position:absolute; width:10px; height:14px; top:-20px; opacity:.95; animation:fall linear forwards; border-radius:2px; }
+    .confetti span{
+      position:absolute; width:10px; height:14px; top:-20px;
+      opacity:.95; animation:fall linear forwards; border-radius:2px;
+    }
     @keyframes fall{ to{ transform: translateY(110vh) rotate(720deg); } }
+
+    .small-muted{font-size:.8rem;color:#94a3b8;}
   </style>
 </head>
-<body class="container py-4">
-  <h3 class="mb-3">อัปโหลดสลิปโอนเงิน สำหรับคำสั่งซื้อ #<?= (int)$order_id ?></h3>
+<body class="bg-page">
+  <div class="page-shell container py-4">
+    <div class="page-header">
+      <div>
+        <div class="page-title">
+          <i class="bi bi-receipt-cutoff"></i>
+          <span>อัปโหลดสลิปโอนเงิน</span>
+        </div>
+        <div class="page-sub">
+          ช่วยยืนยันการชำระเงินคำสั่งซื้อของคุณให้เสร็จภายในเวลาที่กำหนด
+        </div>
+      </div>
+      <div class="page-meta">
+        <strong>คำสั่งซื้อ #<?= (int)$order_id ?></strong>
+        <div>ยอดที่ต้องชำระ: <b><?= baht($order['total_amount']) ?> บาท</b></div>
+        <span class="badge-pill">
+          <i class="bi bi-shield-check"></i>
+          ระบบเข้ารหัสสลิปอย่างปลอดภัย
+        </span>
+      </div>
+    </div>
 
   <?php if ($success): ?>
     <?php $seconds_to_redirect = 8; ?>
     <div class="success-wrap">
       <div class="cardx">
         <div class="head">
-          <span class="fw-semibold">คำสั่งซื้อ #<?= (int)$order_id ?></span>
-          <span class="pill">จะพากลับไป “คำสั่งซื้อของฉัน” ใน <span id="secs"><?= $seconds_to_redirect ?></span> วินาที</span>
+          <span class="fw-semibold"><i class="bi bi-check2-circle me-1 text-primary"></i>คำสั่งซื้อ #<?= (int)$order_id ?></span>
+          <span class="pill">
+            <i class="bi bi-arrow-counterclockwise"></i>
+            จะพากลับไป “คำสั่งซื้อของฉัน” ใน <span id="secs"><?= $seconds_to_redirect ?></span> วินาที
+          </span>
         </div>
         <div class="p-4 p-md-5 text-center">
           <div class="d-flex justify-content-center mb-4">
             <div class="ring"><div class="check"><i class="bi bi-cloud-upload"></i></div></div>
           </div>
           <h2 class="mb-2">อัปโหลดสลิปเรียบร้อย 🎉</h2>
-          <p class="text-muted mb-4">ระบบได้รับสลิปแล้ว และตั้งค่าสถานะเป็น <b>รอตรวจสอบ</b><br>ยอดสั่งซื้อ <b><?= baht($order['total_amount']) ?> บาท</b></p>
+          <p class="text-muted mb-4">
+            ระบบได้รับสลิปแล้ว และตั้งค่าสถานะเป็น <b>รอตรวจสอบ</b><br>
+            ยอดสั่งซื้อ <b><?= baht($order['total_amount']) ?> บาท</b>
+          </p>
           <div class="progressbar mb-4"><div id="bar"></div></div>
           <div class="d-flex flex-wrap justify-content-center gap-2">
-            <a href="my_orders.php" class="btn btn-outline-primary"><i class="bi bi-bag-check"></i> ไปหน้าคำสั่งซื้อของฉัน</a>
-            <a href="order_detail.php?id=<?= (int)$order_id ?>" class="btn btn-outline-secondary"><i class="bi bi-receipt"></i> ดูรายละเอียด</a>
-            <a href="products.php" class="btn btn-primary"><i class="bi bi-shop"></i> เลือกซื้อสินค้าต่อ</a>
+            <a href="my_orders.php" class="btn btn-outline-primary">
+              <i class="bi bi-bag-check"></i> ไปหน้าคำสั่งซื้อของฉัน
+            </a>
+            <a href="order_detail.php?id=<?= (int)$order_id ?>" class="btn btn-outline-secondary">
+              <i class="bi bi-receipt"></i> ดูรายละเอียด
+            </a>
+            <a href="products.php" class="btn btn-primary">
+              <i class="bi bi-shop"></i> เลือกซื้อสินค้าต่อ
+            </a>
+          </div>
+          <div class="small-muted mt-3">
+            คุณจะได้รับการแจ้งเตือนทันทีเมื่อแอดมินตรวจสอบสลิปเสร็จแล้ว
           </div>
         </div>
       </div>
@@ -341,7 +589,7 @@ $seconds_to_redirect = 8;
 
   <?php else: ?>
     <?php if (!empty($error)): ?>
-      <div class="alert alert-danger"><?= h($error) ?></div>
+      <div class="alert alert-danger mb-3"><i class="bi bi-exclamation-triangle-fill me-1"></i><?= h($error) ?></div>
     <?php endif; ?>
 
     <div class="grid">
@@ -352,16 +600,19 @@ $seconds_to_redirect = 8;
             <div class="fw-bold">โอนผ่านธนาคาร (QR)</div>
             <div class="small muted">เวลาชำระ: <?= (int)$minutes_window ?> นาที (นับจากสร้างคำสั่งซื้อ)</div>
           </div>
-          <span class="qr-badge">คำสั่งซื้อ #<?= (int)$order_id ?></span>
+          <span class="qr-badge">
+            <i class="bi bi-hash"></i>
+            #<?= (int)$order_id ?>
+          </span>
         </div>
 
         <div class="p-3 position-relative" id="qrBox">
           <div class="qr-wrap">
 
-            <!-- ใหม่: แคปซูลเวลา -->
+            <!-- แคปซูลแสดงเวลาที่เหลือ -->
             <div class="time-pill" id="timePill">
-              <i class="bi bi-clock-history me-1"></i>
-              <span id="mm">--</span>:<span id="ss">--</span>
+              <i class="bi bi-clock-history"></i>
+              เหลือเวลา <span id="mm">--</span>:<span id="ss">--</span> นาที
             </div>
 
             <!-- QR -->
@@ -394,7 +645,12 @@ $seconds_to_redirect = 8;
           </div>
 
           <?php if ($remaining <= 0): ?>
-            <div class="disabled-cover">หมดเวลาการชำระ</div>
+            <div class="disabled-cover">
+              <div>
+                <div class="mb-1"><i class="bi bi-hourglass-split me-1"></i>หมดเวลาการชำระ</div>
+                <div class="small-muted">กรุณาสร้างคำสั่งซื้อใหม่จากหน้า “คำสั่งซื้อของฉัน”</div>
+              </div>
+            </div>
           <?php endif; ?>
         </div>
 
@@ -406,31 +662,61 @@ $seconds_to_redirect = 8;
       <!-- ขวา: อัปโหลดสลิป -->
       <div class="card">
         <div class="card-body">
-          <h5 class="card-title mb-3">อัปโหลดสลิปโอนเงิน</h5>
+          <h5 class="card-title mb-3">
+            <i class="bi bi-cloud-arrow-up"></i>
+            อัปโหลดสลิปโอนเงิน
+          </h5>
+
+          <div class="order-mini mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span><i class="bi bi-tag me-1 text-primary"></i>ยอดที่ต้องชำระ</span>
+              <strong class="text-primary"><?= baht($order['total_amount']) ?> บาท</strong>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="small text-muted">
+                วิธีชำระ: <?= $order['payment_method']==='bank' ? 'โอนผ่านธนาคาร' : 'เก็บเงินปลายทาง' ?>
+              </span>
+              <span class="badge-status bg-light text-secondary border">
+                <?php
+                  echo $order['payment_status']==='unpaid'  ? 'ยังไม่ชำระ' :
+                       ($order['payment_status']==='pending' ? 'รอตรวจสอบ' :
+                       ($order['payment_status']==='paid'    ? 'ชำระแล้ว' :
+                       ($order['payment_status']==='expired' ? 'หมดเวลาชำระ' :
+                       ($order['payment_status']==='refunded'?'คืนเงินแล้ว' : h($order['payment_status'])))));
+                ?>
+              </span>
+            </div>
+          </div>
+
           <form method="post" enctype="multipart/form-data" id="slipForm">
             <input type="hidden" name="order_id" value="<?= (int)$order_id ?>">
-            <div class="mb-3">
-              <label class="form-label">เลือกรูปสลิป (jpg, png, webp, pdf | ≤ 8MB)</label>
+
+            <div class="upload-zone mb-3">
+              <label class="form-label mb-1 fw-semibold">
+                เลือกรูปสลิป / ไฟล์สลิป
+                <span class="text-danger">*</span>
+              </label>
               <input type="file" name="slip" id="slipInput" class="form-control"
                      accept=".jpg,.jpeg,.png,.webp,.pdf,image/*" required <?= $remaining<=0?'disabled':'' ?>>
+              <div class="d-flex justify-content-between mt-1 upload-hint">
+                <span><i class="bi bi-info-circle me-1"></i>รองรับ: jpg, jpeg, png, webp, pdf</span>
+                <span>ขนาดไม่เกิน 8MB</span>
+              </div>
             </div>
-            <button id="btnUpload" class="btn btn-success" type="submit" <?= $remaining<=0?'disabled':'' ?>>อัปโหลด</button>
-            <a href="my_orders.php" class="btn btn-outline-secondary">ยกเลิก</a>
+
+            <div class="d-flex flex-wrap gap-2 mb-2">
+              <button id="btnUpload" class="btn btn-success px-3" type="submit" <?= $remaining<=0?'disabled':'' ?>>
+                <i class="bi bi-cloud-upload me-1"></i>อัปโหลดสลิป
+              </button>
+              <a href="my_orders.php" class="btn btn-outline-secondary">
+                <i class="bi bi-x-circle me-1"></i>ยกเลิกและกลับไปหน้าคำสั่งซื้อ
+              </a>
+            </div>
+
+            <div class="small text-muted">
+              หลังอัปโหลดแล้ว ระบบจะเปลี่ยนสถานะเป็น <b>รอตรวจสอบ</b> และแจ้งเตือนให้คุณอัตโนมัติเมื่อแอดมินตรวจเสร็จ
+            </div>
           </form>
-          <hr>
-          <div class="small muted">
-            ยอดที่ต้องชำระ: <b><?= baht($order['total_amount']) ?> บาท</b><br>
-            สถานะปัจจุบัน: 
-            <b>
-              <?php
-                echo $order['payment_status']==='unpaid'  ? 'ยังไม่ชำระ' :
-                     ($order['payment_status']==='pending' ? 'รอตรวจสอบ' :
-                     ($order['payment_status']==='paid'    ? 'ชำระแล้ว' :
-                     ($order['payment_status']==='expired' ? 'หมดเวลาชำระ' :
-                     ($order['payment_status']==='refunded'?'คืนเงินแล้ว' : h($order['payment_status'])))));
-              ?>
-            </b>
-          </div>
         </div>
       </div>
     </div>
@@ -466,7 +752,7 @@ $seconds_to_redirect = 8;
           document.getElementById('qrImg')?.remove();
           const cover = document.createElement('div');
           cover.className = 'disabled-cover';
-          cover.textContent = 'หมดเวลาการชำระ';
+          cover.innerHTML = '<div><div class="mb-1"><i class="bi bi-hourglass-split me-1"></i>หมดเวลาการชำระ</div><div class="small-muted">กรุณาสร้างคำสั่งซื้อใหม่จากหน้า “คำสั่งซื้อของฉัน”</div></div>';
           qrBox?.appendChild(cover);
 
           // แจ้งหมดอายุไปที่เซิร์ฟเวอร์
@@ -488,5 +774,6 @@ $seconds_to_redirect = 8;
     })();
     </script>
   <?php endif; ?>
+  </div>
 </body>
 </html>

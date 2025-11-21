@@ -1,5 +1,5 @@
 <?php
-// Home/admin/service_ticket_detail.php (stabilized + UX improved)
+// Home/admin/service_ticket_detail.php (stabilized + UX improved + payment + items)
 if (session_status()===PHP_SESSION_NONE){ session_start(); }
 require __DIR__ . '/../includes/db.php';
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
@@ -53,9 +53,15 @@ if($st=$conn->prepare("SELECT id,ticket_id,status,note,created_at FROM service_s
 $ticketImages = parse_images($ticket['image_path'] ?? '');
 
 /* mapping สถานะหลักของใบงาน (ฝั่งตารางหลัก) */
+/* ใช้ชุดสถานะใหม่ตามที่ต้องการ */
 $statuses = [
-  'queued'=>'เข้าคิว','confirm'=>'ยืนยันคิว','checking'=>'ตรวจเช็ค','waiting_parts'=>'รออะไหล่',
-  'repairing'=>'กำลังซ่อม','done'=>'เสร็จพร้อมรับ','cancelled'=>'ยกเลิก'
+  'queued'        => 'เข้าคิว',
+ 'confirm'     => 'ยืนยันคิว',
+  'waiting_parts' => 'รออะไหล่',
+  'repairing'     => 'กำลังซ่อม',
+  'done'          => 'เสร็จพร้อมรับ',
+  'returned'      => 'ส่งคืนลูกค้าแล้ว',
+  'cancelled'     => 'ยกเลิก',
 ];
 
 /* --- ความเร่งด่วน (normalize) --- */
@@ -89,9 +95,87 @@ if($hasProposals && $st=$conn->prepare("SELECT id,ticket_type,ticket_id,slot_sta
   $proposals=$st->get_result()->fetch_all(MYSQLI_ASSOC);
   $st->close();
 }
-$spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'danger','cancelled'=>'secondary'];
+$spBadge = [
+  'pending'   => 'warning text-dark',
+  'accepted'  => 'success',
+  'declined'  => 'danger',
+  'cancelled' => 'secondary'
+];
 
-?><!doctype html>
+$spText = [
+  'pending'   => 'รอลูกค้ายืนยัน',
+  'accepted'  => 'ลูกค้ายืนยันแล้ว',
+  'declined'  => 'ลูกค้าปฏิเสธ',
+  'cancelled' => 'ยกเลิกแล้ว',
+];
+
+
+/* ===== รายการซ่อม / ค่าบริการ (service_ticket_items) ===== */
+$items = [];
+$itemsTotal = 0.0;
+$itemTypeLabel = [
+  'part'   => 'อะไหล่',
+  'labor'  => 'ค่าแรง',
+  'service'=> 'ค่าบริการ',
+  'fee'    => 'ค่าธรรมเนียมอื่นๆ',
+  'other'  => 'อื่น ๆ'
+];
+$hasItemsTable = $conn->query("SHOW TABLES LIKE 'service_ticket_items'")->num_rows>0;
+
+if ($hasItemsTable && $st = $conn->prepare("SELECT id,item_type,description,qty,unit_price,created_at FROM service_ticket_items WHERE ticket_id=? ORDER BY id ASC")) {
+  $st->bind_param('i',$id);
+  $st->execute();
+  $items = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+  $st->close();
+
+  foreach($items as $it){
+    $itemsTotal += (float)$it['qty'] * (float)$it['unit_price'];
+  }
+}
+
+/* ===== ข้อมูลการชำระเงินค่าบริการซ่อม ===== */
+$hasServicePriceCol  = has_col($conn,'service_tickets','service_price');
+$hasPaymentStatusCol = has_col($conn,'service_tickets','payment_status');
+$hasPaymentSlipCol   = has_col($conn,'service_tickets','payment_slip');
+$hasPaidAtCol        = has_col($conn,'service_tickets','paid_at');
+$hasPayMethodCol     = has_col($conn,'service_tickets','pay_method');
+$payMethod           = $hasPayMethodCol ? ($ticket['pay_method'] ?? '') : '';
+
+$servicePrice = (float)($ticket['estimate_total'] ?? 0);
+if ($hasServicePriceCol && array_key_exists('service_price',$ticket) && $ticket['service_price'] !== null) {
+  $servicePrice = (float)$ticket['service_price'];
+} elseif($hasItemsTable && $itemsTotal > 0){
+  $servicePrice = $itemsTotal;
+}
+
+$paymentStatus = 'unpaid';
+if ($hasPaymentStatusCol && array_key_exists('payment_status',$ticket) && $ticket['payment_status']!=='') {
+  $paymentStatus = $ticket['payment_status'];
+}
+
+$PAY_LABEL = [
+  'unpaid'  => 'ยังไม่ชำระ',
+  'pending' => 'รอตรวจสอบการชำระ',
+  'paid'    => 'ชำระแล้ว',
+];
+$PAY_BADGE = [
+  'unpaid'  => 'danger',
+  'pending' => 'warning text-dark',
+  'paid'    => 'success',
+];
+$PAY_METHOD = [
+  'bank'   => 'โอนธนาคาร / พร้อมเพย์',
+  'cash'   => 'เงินสดหน้าร้าน',
+  'wallet' => 'วอลเล็ท',
+  'cod'    => 'เก็บเงินปลายทาง',
+];
+
+$curStatusLabel = $statuses[$ticket['status']] ?? $ticket['status'];
+if ($ticket['status']==='done' && $paymentStatus!=='paid') {
+  $curStatusLabel .= ' (รอชำระเงิน)';
+}
+?>
+<!doctype html>
 <html lang="th">
 <head>
   <meta charset="utf-8">
@@ -125,6 +209,14 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
 </nav>
 
 <div class="container py-3">
+  
+  <?php if (!empty($_SESSION['flash'])): ?>
+    <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
+      <?= htmlspecialchars($_SESSION['flash'], ENT_QUOTES, 'UTF-8') ?>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <?php unset($_SESSION['flash']); ?>
+  <?php endif; ?>
   <div class="row g-3">
     <div class="col-lg-8">
       <div class="cardx p-3">
@@ -133,7 +225,7 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
           <div class="d-flex align-items-center flex-wrap gap-2">
             <span class="badge text-bg-<?= $urgClass ?>"><i class="bi bi-lightning-charge"></i> <?= $urgLabel ?></span>
             <span>สถานะปัจจุบัน:
-              <span class="badge text-bg-primary"><?= h($statuses[$ticket['status']] ?? $ticket['status']) ?></span>
+              <span class="badge text-bg-primary"><?= h($curStatusLabel) ?></span>
             </span>
           </div>
         </div>
@@ -180,7 +272,7 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
             </div>
           </div>
 
-          <div class="col-md-4"><div class="small text-muted">ค่าส่วนเพิ่มจากตัวเลือก</div>
+          <div class="col-md-4"><div class="small text-muted">ค่าส่วนเพิ่มจากตัวเลือก (ประมาณ)</div>
             <div><?= number_format((float)($ticket['estimate_total'] ?? 0),2) ?> ฿</div>
           </div>
 
@@ -199,6 +291,118 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
               <a class="thumb" data-src="<?= h($u) ?>" href="javascript:void(0)"><img src="<?= h($u) ?>" alt=""></a>
             <?php endforeach; ?>
           </div>
+        <?php endif; ?>
+      </div>
+
+      <!-- รายการซ่อม / ค่าบริการ -->
+      <div class="cardx p-3 mt-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="fw-bold mb-0">รายการซ่อม / ค่าบริการ</h6>
+          <?php if($hasItemsTable): ?>
+            <div class="small text-muted">
+              รวม <?= count($items) ?> รายการ | ยอดรวมโดยประมาณ: <?= number_format($itemsTotal,2) ?> ฿
+            </div>
+          <?php endif; ?>
+        </div>
+
+        <?php if(!$hasItemsTable): ?>
+          <div class="text-muted small">
+            ยังไม่มีตาราง <code>service_ticket_items</code> ในฐานข้อมูล กรุณาสร้างตารางก่อน (ดู SQL ที่เพิ่มให้)
+          </div>
+        <?php else: ?>
+          <?php if(empty($items)): ?>
+            <div class="text-muted small mb-2">ยังไม่มีรายการ แอดมินสามารถเพิ่มรายการด้านล่าง</div>
+          <?php else: ?>
+            <div class="table-responsive mb-2">
+              <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width:5%">#</th>
+                    <th style="width:18%">ประเภท</th>
+                    <th>รายละเอียด</th>
+                    <th style="width:10%" class="text-end">จำนวน</th>
+                    <th style="width:15%" class="text-end">ราคา/หน่วย</th>
+                    <th style="width:15%" class="text-end">รวม</th>
+                    <th style="width:8%"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php $i=1; foreach($items as $it):
+                    $lineTotal = (float)$it['qty'] * (float)$it['unit_price'];
+                  ?>
+                  <tr>
+                    <td><?= $i++ ?></td>
+                    <td><?= h($itemTypeLabel[$it['item_type']] ?? $it['item_type']) ?></td>
+                    <td>
+                      <?= nl2br(h($it['description'])) ?>
+                      <div class="small text-muted"><?= h($it['created_at']) ?></div>
+                    </td>
+                    <td class="text-end">
+                      <?= rtrim(rtrim(number_format((float)$it['qty'],2), '0'),'.') ?>
+                    </td>
+                    <td class="text-end"><?= number_format((float)$it['unit_price'],2) ?></td>
+                    <td class="text-end"><?= number_format($lineTotal,2) ?></td>
+                    <td class="text-end">
+                      <form action="service_ticket_items_save.php" method="post"
+                            onsubmit="return confirm('ลบรายการนี้?');">
+                        <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
+                        <input type="hidden" name="item_id" value="<?= (int)$it['id'] ?>">
+                        <input type="hidden" name="do" value="delete">
+                        <button class="btn btn-sm btn-outline-danger" type="submit">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                  <?php endforeach; ?>
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th colspan="5" class="text-end">รวม</th>
+                    <th class="text-end"><?= number_format($itemsTotal,2) ?> ฿</th>
+                    <th></th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          <?php endif; ?>
+
+          <!-- ฟอร์มเพิ่มรายการ -->
+          <hr>
+          <form action="service_ticket_items_save.php" method="post" class="row g-2 align-items-end">
+            <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
+            <input type="hidden" name="do" value="add">
+            <div class="col-md-3">
+              <label class="form-label smallmuted">ประเภท</label>
+              <select name="item_type" class="form-select form-select-sm">
+                <option value="part">อะไหล่</option>
+                <option value="labor">ค่าแรง</option>
+                <option value="service">ค่าบริการ</option>
+                <option value="fee">ค่าธรรมเนียมอื่นๆ</option>
+                <option value="other">อื่น ๆ</option>
+              </select>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label smallmuted">รายละเอียด</label>
+              <input type="text" name="description" class="form-control form-control-sm" required
+                     placeholder="เช่น เปลี่ยนจอ, เปลี่ยนแบต, ล้างเครื่อง">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label smallmuted">จำนวน</label>
+              <input type="number" name="qty" step="0.01" min="0" value="1"
+                     class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label smallmuted">ราคา/หน่วย</label>
+              <input type="number" name="unit_price" step="0.01" min="0" value="0"
+                     class="form-control form-control-sm" required>
+            </div>
+            <div class="col-12 d-grid mt-1">
+              <button class="btn btn-sm btn-primary" type="submit">
+                <i class="bi bi-plus-circle"></i> เพิ่มรายการ
+              </button>
+            </div>
+          </form>
         <?php endif; ?>
       </div>
 
@@ -230,18 +434,21 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
       </div>
     </div>
 
-    <!-- แผงควบคุมขวา -->
+   <!-- แผงควบคุมขวา -->
     <div class="col-lg-4">
       <!-- อัปเดตสถานะ -->
       <div class="cardx p-3">
         <h6 class="fw-bold">อัปเดตสถานะ</h6>
         <div class="quick-btns d-flex flex-wrap gap-2 mb-2">
           <button class="btn btn-outline-secondary btn-sm js-quick" data-status="queued">เข้าคิว</button>
-          <button class="btn btn-outline-success btn-sm js-quick" data-status="confirm">ยืนยันคิว</button>
+          <button class="btn btn-outline-info btn-sm js-quick" data-status="confirm">ยืนยันคิว</button>
+          <button class="btn btn-outline-warning btn-sm js-quick" data-status="waiting_parts">รออะไหล่</button>
           <button class="btn btn-outline-primary btn-sm js-quick" data-status="repairing">กำลังซ่อม</button>
-          <button class="btn btn-outline-success btn-sm js-quick" data-status="done">เสร็จ</button>
+          <button class="btn btn-outline-success btn-sm js-quick" data-status="done">เสร็จพร้อมรับ</button>
+          <button class="btn btn-outline-dark btn-sm js-quick" data-status="returned">ส่งคืนลูกค้าแล้ว</button>
           <button class="btn btn-outline-danger btn-sm js-quick" data-status="cancelled">ยกเลิก</button>
         </div>
+
         <form id="statusForm" action="service_update_status.php" method="post" class="d-grid gap-2">
           <input type="hidden" name="id" value="<?= (int)$ticket['id'] ?>">
           <select class="form-select" name="status" required id="statusSel">
@@ -252,7 +459,102 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
           <textarea class="form-control" name="note" rows="3" placeholder="โน้ตถึงลูกค้า/ภายใน (บันทึกลงไทม์ไลน์)"></textarea>
           <button class="btn btn-primary"><i class="bi bi-save"></i> บันทึก</button>
         </form>
-        <div class="small text-muted mt-2">* “ยืนยันคิว” จะตั้งเวลานัดอัตโนมัติ (จากข้อเสนอ/วันที่ลูกค้าเสนอ/เวลาปัจจุบัน)</div>
+        <div class="small text-muted mt-2">
+          * “ยืนยันคิว” หรือ “ส่งข้อเสนอเวลา” จะตั้งเวลานัดอัตโนมัติ (จากข้อเสนอ/วันที่ลูกค้าเสนอ/เวลาปัจจุบัน)
+        </div>
+      </div>
+
+      <!-- การชำระเงินค่าบริการ -->
+      <div class="cardx p-3 mt-3">
+        <h6 class="fw-bold">การชำระเงินค่าบริการ</h6>
+
+        <?php if(!$hasPaymentStatusCol): ?>
+          <div class="alert alert-danger mb-2">
+            ยังไม่พบคอลัมน์ <code>payment_status</code> ในตาราง <code>service_tickets</code><br>
+            กรุณารัน ALTER TABLE ก่อนใช้งานฟีเจอร์นี้
+          </div>
+        <?php else: ?>
+          <div class="mb-2">
+            <div class="smallmuted">สถานะการชำระเงิน</div>
+            <div>
+              <span class="badge bg-<?= $PAY_BADGE[$paymentStatus] ?? 'secondary' ?>">
+                <?= h($PAY_LABEL[$paymentStatus] ?? $paymentStatus) ?>
+              </span>
+            </div>
+          </div>
+          <?php if($hasPayMethodCol): ?>
+          <div class="mb-2">
+            <div class="smallmuted">ช่องทางที่ลูกค้าเลือก</div>
+            <div>
+              <?php if($payMethod === 'cash'): ?>
+                <span class="badge bg-secondary">
+                  <?= h($PAY_METHOD[$payMethod] ?? $payMethod) ?>
+                </span>
+                <div class="small text-muted">
+                  ลูกค้าเลือกชำระเงินสดหน้าร้าน (ไม่มีสลิปแนบ)
+                </div>
+              <?php elseif($payMethod !== ''): ?>
+                <span class="badge bg-info text-dark">
+                  <?= h($PAY_METHOD[$payMethod] ?? $payMethod) ?>
+                </span>
+              <?php else: ?>
+                <span class="text-muted small">ยังไม่ระบุช่องทางชำระ</span>
+              <?php endif; ?>
+            </div>
+          </div>
+        <?php endif; ?>
+
+          <div class="mb-2">
+            <div class="smallmuted">ยอดค่าบริการที่คิดกับลูกค้า</div>
+            <div class="fs-5 fw-semibold"><?= number_format($servicePrice, 2) ?> ฿</div>
+            <?php if($hasItemsTable && $itemsTotal>0): ?>
+              <div class="small text-muted">
+                * ยอดรวมจากรายการซ่อม: <?= number_format($itemsTotal,2) ?> ฿
+                <?php if($hasServicePriceCol && $ticket['service_price']!==null && (float)$ticket['service_price'] !== (float)$itemsTotal): ?>
+                  (service_price ในฐานข้อมูล: <?= number_format((float)$ticket['service_price'],2) ?> ฿)
+                <?php endif; ?>
+              </div>
+            <?php elseif(!$hasServicePriceCol): ?>
+              <div class="small text-muted">* ยังไม่มีคอลัมน์ <code>service_price</code> ใช้ค่า estimate_total แทน</div>
+            <?php endif; ?>
+          </div>
+
+          <?php if($hasPaidAtCol && !empty($ticket['paid_at'])): ?>
+            <div class="mb-2">
+              <div class="smallmuted">ชำระเมื่อ</div>
+              <div><?= h($ticket['paid_at']) ?></div>
+            </div>
+          <?php endif; ?>
+
+          <?php if($hasPaymentSlipCol && !empty($ticket['payment_slip'])): ?>
+  <?php $slipUrl = img_url($ticket['payment_slip']); ?>
+  <div class="mb-2">
+    <div class="smallmuted mb-1">
+      สลิป/หลักฐานการชำระ
+      <span class="text-muted">(คลิกที่รูปเพื่อขยาย)</span>
+    </div>
+    <img
+      src="<?= h($slipUrl) ?>"
+      data-src="<?= h($slipUrl) ?>"
+      alt="Slip"
+      class="img-fluid rounded border slip-thumb"
+      style="max-height:220px;object-fit:contain;cursor:pointer;">
+  </div>
+<?php endif; ?>
+
+          <form action="service_payment_update.php" method="post" class="d-flex flex-wrap gap-2 mt-2">
+            <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
+            <button type="submit" name="action" value="mark_paid" class="btn btn-sm btn-success">
+              <i class="bi bi-check2-circle"></i> ยืนยันรับชำระแล้ว
+            </button>
+            <button type="submit" name="action" value="mark_pending" class="btn btn-sm btn-outline-warning">
+              <i class="bi bi-hourglass-split"></i> ตั้งเป็นรอตรวจสอบ
+            </button>
+            <button type="submit" name="action" value="mark_unpaid" class="btn btn-sm btn-outline-danger">
+              <i class="bi bi-x-circle"></i> ตั้งเป็นยังไม่ชำระ
+            </button>
+          </form>
+        <?php endif; ?>
       </div>
 
       <!-- เสนอเวลานัด -->
@@ -316,7 +618,9 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
                 <div>
                   <div class="fw-semibold">
                     <?= h($p['slot_start']) ?><?php if(!empty($p['slot_end'])): ?> — <?= h($p['slot_end']) ?><?php endif; ?>
-                    <span class="badge bg-<?= $spBadge[$p['status']] ?? 'secondary' ?> ms-1"><?= h($p['status']) ?></span>
+                    <span class="badge bg-<?= $spBadge[$p['status']] ?? 'secondary' ?> ms-1">
+                       <?= h($spText[$p['status']] ?? $p['status']) ?>
+                    </span>
                   </div>
                   <?php if(!empty($p['note'])): ?>
                     <div class="small text-muted"><?= h($p['note']) ?></div>
@@ -372,17 +676,28 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
 (function(){
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$= (sel, root=document) => Array.from(root.querySelectorAll(sel));
-  const toastEl = $('#toast'); const toastBody = $('#toastBody');
-  const showToast = (msg)=>{ if(!toastEl) return; toastBody.textContent = msg||'เสร็จ'; new bootstrap.Toast(toastEl).show(); };
+  const toastEl = $('#toast'); 
+  const toastBody = $('#toastBody');
+  const showToast = (msg)=>{ 
+    if(!toastEl) return; 
+    toastBody.textContent = msg||'เสร็จ'; 
+    new bootstrap.Toast(toastEl).show(); 
+  };
 
-  /* Lightbox */
-  const lb = new bootstrap.Modal(document.getElementById('lightbox'));
+  /* Lightbox (รูปที่ลูกค้าแนบ + สลิป) */
+  const lightboxEl = document.getElementById('lightbox');
   const imgEl = document.getElementById('lightboxImg');
+  let lb = null;
+  if (lightboxEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+    lb = new bootstrap.Modal(lightboxEl);
+  }
+
   document.addEventListener('click', (e)=>{
     const a = e.target.closest('[data-src]');
-    if(!a) return;
+    if(!a || !lb || !imgEl) return;
     e.preventDefault();
-    if(imgEl){ imgEl.src = a.getAttribute('data-src'); lb.show(); }
+    imgEl.src = a.getAttribute('data-src');
+    lb.show();
   });
 
   /* Copy phone */
@@ -390,7 +705,10 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
     const el = e.target.closest('.copy');
     if(!el) return;
     const txt = el.dataset.copy||'';
-    try{ await navigator.clipboard.writeText(txt); showToast('คัดลอกแล้ว'); }catch(_){ /* ignore */ }
+    try{ 
+      await navigator.clipboard.writeText(txt); 
+      showToast('คัดลอกแล้ว'); 
+    }catch(_){ /* ignore */ }
   });
 
   /* ปุ่มสถานะลัด */
@@ -414,9 +732,15 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
     try{
       const r = await fetch('schedule_propose.php', { method:'POST', body:fd });
       const j = await r.json();
-      if(j.ok){ showToast('ส่งข้อเสนอแล้ว'); location.reload(); }
-      else { alert('ส่งข้อเสนอไม่สำเร็จ: '+(j.error||'unknown')); }
-    }catch(_){ alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
+      if(j.ok){ 
+        showToast('ส่งข้อเสนอแล้ว'); 
+        location.reload(); 
+      } else { 
+        alert('ส่งข้อเสนอไม่สำเร็จ: '+(j.error||'unknown')); 
+      }
+    }catch(_){ 
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); 
+    }
     if(btn) btn.disabled = false;
   });
 
@@ -435,9 +759,15 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
         body: new URLSearchParams({ action:act, prop_id:pid, ticket_id:'<?= (int)$ticket['id'] ?>' })
       });
       const j = await r.json();
-      if(j.ok){ showToast('ดำเนินการเสร็จ'); location.reload(); }
-      else { alert('ทำรายการไม่สำเร็จ: '+(j.error||'unknown')); }
-    }catch(_){ alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
+      if(j.ok){ 
+        showToast('ดำเนินการเสร็จ'); 
+        location.reload(); 
+      } else { 
+        alert('ทำรายการไม่สำเร็จ: '+(j.error||'unknown')); 
+      }
+    }catch(_){ 
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); 
+    }
   });
 
   /* ล้างนัดที่ยืนยันแล้ว */
@@ -451,8 +781,15 @@ $spBadge = ['pending'=>'warning text-dark','accepted'=>'success','declined'=>'da
         body: new URLSearchParams({ action:'clear-appointment', ticket_id:'<?= (int)$ticket['id'] ?>' })
       });
       const j = await r.json();
-      if(j.ok){ showToast('ล้างนัดแล้ว'); location.reload(); } else { alert('ทำรายการไม่สำเร็จ: '+(j.error||'unknown')); }
-    }catch(_){ alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
+      if(j.ok){ 
+        showToast('ล้างนัดแล้ว'); 
+        location.reload(); 
+      } else { 
+        alert('ทำรายการไม่สำเร็จ: '+(j.error||'unknown')); 
+      }
+    }catch(_){ 
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); 
+    }
   });
 })();
 </script>

@@ -184,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stc->close();
 
     if ($c) {
-      // นับจำนวนการใช้คูปอง
+      // นับจำนวนการใช้คูปอง (ง่าย ๆ รวมทุก context)
       $totalUsed = 0;
       $userUsed  = 0;
       if (table_exists($conn,'coupon_usages')) {
@@ -199,12 +199,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $q2->close();
       }
 
-      // ตรวจสิทธิ์
-      if ((int)$c['uses_limit']>0 && $totalUsed >= (int)$c['uses_limit']) {
-        $reason = 'คูปองนี้ถูกใช้งานครบแล้ว';
-      } elseif ((int)$c['per_user_limit']>0 && $userUsed >= (int)$c['per_user_limit']) {
-        $reason = 'คุณใช้คูปองนี้ครบจำนวนแล้ว';
-      } else {
+      // ถ้าเกินสิทธิ์ก็แค่ไม่ลด แต่ยังสั่งซื้อได้
+      if (!((int)$c['uses_limit']>0 && $totalUsed >= (int)$c['uses_limit'])
+          && !((int)$c['per_user_limit']>0 && $userUsed >= (int)$c['per_user_limit'])) {
+
         // คำนวณส่วนลด
         $base = 0.0;
         foreach ($items as $it) {
@@ -227,76 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
   }
 
-  $conn->begin_transaction();
-
-try {
-  // ✅ ใช้ตัวแปร $inputCode ที่ประกาศไว้ตอนต้น (ไม่ใช่ $coupon_code)
-  $lock = $conn->prepare("SELECT id, uses_limit, per_user_limit FROM coupons WHERE code=? FOR UPDATE");
-  $lock->bind_param('s', $inputCode);
-  $lock->execute();
-  $coupon = $lock->get_result()->fetch_assoc();
-  $lock->close();
-
-  if (!$coupon) {
-    throw new Exception('คูปองไม่ถูกต้องหรือไม่พบในระบบ');
-  }
-
-  // ✅ ตรวจจำนวนการใช้ (ออเดอร์ที่ยังไม่ถูกยกเลิก/คืนเงิน)
-  $q = $conn->prepare("
-    SELECT 
-      COALESCE(SUM(t.anyone),0) AS used_total,
-      COALESCE(SUM(t.mine),0)   AS used_by_me
-    FROM (
-      SELECT 
-        1 AS anyone,
-        CASE WHEN cu.user_id=? THEN 1 ELSE 0 END AS mine
-      FROM coupon_usages cu
-      INNER JOIN orders o ON o.id = cu.order_id
-      WHERE cu.coupon_id = ?
-        AND cu.context = 'order'
-        AND o.payment_status IN ('unpaid','pending','paid')
-        AND (o.cancel_reason IS NULL OR o.cancel_reason = '')
-      GROUP BY cu.order_id
-    ) t
-  ");
-  $q->bind_param('ii', $user_id, $coupon['id']);
-  $q->execute();
-  $row = $q->get_result()->fetch_assoc() ?: ['used_total'=>0,'used_by_me'=>0];
-  $q->close();
-
-  if (($coupon['uses_limit'] ?? 0) > 0 && $row['used_total'] >= $coupon['uses_limit']) {
-    throw new Exception('คูปองนี้มีผู้ใช้ครบแล้ว');
-  }
-  if (($coupon['per_user_limit'] ?? 0) > 0 && $row['used_by_me'] >= $coupon['per_user_limit']) {
-    throw new Exception('คุณใช้คูปองนี้ครบจำนวนแล้ว');
-  }
-
-  // ✅ (สร้างคำสั่งซื้อ INSERT orders ... ที่นี่ตามโค้ดคุณ)
-  // เช่น:
-  // $order_id = ...;  // หลังจาก INSERT สำเร็จแล้ว
-
-  // ✅ บันทึกการใช้คูปอง (อย่าลืมเปลี่ยน $discount_amount ให้ใช้ตัวแปรส่วนลดจริง)
-  $discount_amount = $discount ?? 0.0;
-  if ($coupon['id'] && isset($order_id)) {
-    $ins = $conn->prepare("
-      INSERT INTO coupon_usages (coupon_id, user_id, order_id, context, amount, created_at, used_at)
-      VALUES (?, ?, ?, 'order', ?, NOW(), NOW())
-    ");
-    $ins->bind_param('iiid', $coupon['id'], $user_id, $order_id, $discount_amount);
-    $ins->execute();
-    $ins->close();
-  }
-
-  $conn->commit();
-
-} catch (Exception $e) {
-  $conn->rollback();
-  // ❗ เปลี่ยนจาก die() เป็น redirect กลับหน้า checkout พร้อมข้อความแจ้งเตือนสวยๆ
-  $msg = urlencode($e->getMessage());
-  $code = urlencode($inputCode);
-  header("Location: checkout.php?apply_error={$msg}&apply_code={$code}");
-  exit;
-}
+  // ยอดสุดท้ายหลังหักส่วนลดคูปอง
   $final_total = max(0.0, $total - $discount);
 
   /* ========== 4) ทำธุรกรรมสั่งซื้อ ========== */
@@ -308,25 +237,42 @@ try {
     $ord_has_discount = has_col($conn,'orders','discount_total');
     $ord_has_coupon   = has_col($conn,'orders','coupon_code');
 
-    // เพิ่มออเดอร์
-    $sql = "INSERT INTO orders
-            (user_id,total_price".($ord_has_discount?",discount_total":"").($ord_has_coupon?",coupon_code":"").",status,payment_status,shipping_name,shipping_phone,shipping_address,
-             payment_method,stock_deducted,created_at,updated_at,expires_at)
-            VALUES (?,?,".($ord_has_discount?"?,":"").($ord_has_coupon?"?,":"")."?,?,?,?,?,?,0,NOW(),NOW(),".($method==='bank'?"DATE_ADD(NOW(), INTERVAL ? MINUTE)":"NULL").")";
-    if ($method === 'bank') {
-      if ($ord_has_discount && $ord_has_coupon)
-        $st = $conn->prepare($sql) && $st->bind_param("iddsssssssi",$user_id,$final_total,$discount,$inputCode,$status,$pay_status,$fullname,$phone,$address,$method,$minutes_window);
+    // ===== สร้าง SQL + bind param แบบ dynamic รองรับทั้ง COD / BANK =====
+    $cols   = "user_id,total_price";
+    $values = "?,?";
+    $types  = "id";
+    $params = [$user_id, $final_total];
+
+    if ($ord_has_discount) {
+      $cols   .= ",discount_total";
+      $values .= ",?";
+      $types  .= "d";
+      $params[] = $discount;
+    }
+    if ($ord_has_coupon) {
+      $cols   .= ",coupon_code";
+      $values .= ",?";
+      $types  .= "s";
+      $params[] = $inputCode;
     }
 
-    $st = $conn->prepare($sql);
-    if ($ord_has_discount && $ord_has_coupon)
-      $st->bind_param("iddsssssss", $user_id,$final_total,$discount,$inputCode,$status,$pay_status,$fullname,$phone,$address,$method);
-    elseif ($ord_has_discount)
-      $st->bind_param("iddssssss", $user_id,$final_total,$discount,$status,$pay_status,$fullname,$phone,$address,$method);
-    elseif ($ord_has_coupon)
-      $st->bind_param("idsssssss", $user_id,$final_total,$inputCode,$status,$pay_status,$fullname,$phone,$address,$method);
-    else
-      $st->bind_param("idssssss", $user_id,$final_total,$status,$pay_status,$fullname,$phone,$address,$method);
+    $cols .= ",status,payment_status,shipping_name,shipping_phone,shipping_address,payment_method,stock_deducted,created_at,updated_at,expires_at";
+
+    if ($method === 'bank') {
+      // มี expires_at เป็น DATE_ADD(... ? MINUTE)
+      $values .= ",?,?,?,?,?,?,0,NOW(),NOW(),DATE_ADD(NOW(), INTERVAL ? MINUTE)";
+      $types  .= "ssssssi";
+      array_push($params, $status, $pay_status, $fullname, $phone, $address, $method, $minutes_window);
+    } else {
+      // COD: expires_at = NULL
+      $values .= ",?,?,?,?,?,?,0,NOW(),NOW(),NULL";
+      $types  .= "ssssss";
+      array_push($params, $status, $pay_status, $fullname, $phone, $address, $method);
+    }
+
+    $sql = "INSERT INTO orders ($cols) VALUES ($values)";
+    $st  = $conn->prepare($sql);
+    $st->bind_param($types, ...$params);
     $st->execute();
     $order_id = (int)$st->insert_id;
     $st->close();
@@ -350,7 +296,7 @@ try {
       $conn->query("UPDATE orders SET stock_deducted=1 WHERE id={$order_id}");
     }
 
-    // บันทึกคูปอง
+    // บันทึกคูปอง ถ้ามี
     if ($coupon_id && table_exists($conn,'coupon_usages')) {
       $ins = $conn->prepare("INSERT INTO coupon_usages (coupon_id,user_id,order_id,context,amount,used_at) VALUES (?,?,?,?,?,NOW())");
       $ctx = 'order';
@@ -385,8 +331,9 @@ try {
 
   } catch (Throwable $e) {
     $conn->rollback();
+    // ถ้าอยาก debug ชั่วคราว ลอง var_dump($e->getMessage()); die();
     header("Location: checkout.php?error=order_failed");
     exit;
   }
 }
-?> 
+?>

@@ -27,7 +27,7 @@ function canonical_status($s){
   switch ($s) {
     case 'queued':    return 'queued';
     case 'checking': return 'diagnose';
-    case 'confirm':  return 'queued';   // << สำคัญ: ยืนยันคิว = เข้าคิว
+    case 'confirmed':  return 'queued';  
     default:         return $s;         // pricing, repairing, done, returned, cancelled ...
   }
 }

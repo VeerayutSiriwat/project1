@@ -25,6 +25,7 @@ if ($isLoggedIn) {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
   <style>
     body{background:#f7fafc}
     .chat{border:1px solid #e9eef5;border-radius:16px;background:#fff;overflow:hidden}

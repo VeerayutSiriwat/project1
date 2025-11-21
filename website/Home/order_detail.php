@@ -53,7 +53,7 @@ $user_id  = (int)$_SESSION['user_id'];
 $order_id = (int)($_GET['id'] ?? 0);
 if ($order_id <= 0) { http_response_code(400); exit('ไม่พบเลขที่คำสั่งซื้อ'); }
 
-/* ---------- 1) ดึงหัวออเดอร์ (รวมคอลัมน์ส่วนลด/โค้ดคูปอง ถ้ามี) ---------- */
+/* ---------- 1) ดึงหัวออเดอร์ ---------- */
 $extras = [];
 $extras[] = has_col($conn,'orders','discount_total') ? "COALESCE(o.discount_total,0) AS discount_total" : "0 AS discount_total";
 $extras[] = has_col($conn,'orders','coupon_code')     ? "COALESCE(o.coupon_code,'') AS coupon_code"    : "'' AS coupon_code";
@@ -96,17 +96,15 @@ $st2->execute();
 $items = $st2->get_result()->fetch_all(MYSQLI_ASSOC);
 $st2->close();
 
-/* ---------- 3) คำนวณยอดรวม (เพื่อแสดง) + ดึงรายละเอียดคูปอง ---------- */
+/* ---------- 3) คำนวณยอดรวม + คูปอง ---------- */
 $items_subtotal = 0.0;
 foreach ($items as $it) { $items_subtotal += ((float)$it['quantity'] * (float)$it['unit_price']); }
 
 $discount_total = (float)($order['discount_total'] ?? 0);
 $coupon_code    = trim((string)($order['coupon_code'] ?? ''));
-$grand_total    = (float)($order['total_price'] ?? max(0.0, $items_subtotal - $discount_total)); // เผื่อบางสคีมา
+$grand_total    = (float)($order['total_price'] ?? max(0.0, $items_subtotal - $discount_total));
 
-/* --- เติมส่วนลดให้ถูกเสมอ แม้ discount_total จะเป็น 0 --- */
 if ($discount_total <= 0) {
-  // 1) ลองดึงจาก coupon_usages.amount ของออเดอร์นี้ (รองรับ place_order.php ที่บันทึก amount ไว้)
   if ($coupon_code !== '' && table_exists($conn,'coupon_usages') && has_col($conn,'coupon_usages','amount')) {
     if ($stAmt = $conn->prepare("SELECT COALESCE(SUM(amount),0) AS amt FROM coupon_usages WHERE order_id=?")) {
       $stAmt->bind_param("i", $order_id);
@@ -116,18 +114,15 @@ if ($discount_total <= 0) {
       if ($amt > 0) { $discount_total = $amt; }
     }
   }
-  // 2) ถ้ายังเป็น 0 และมี total_price ให้ถอดจาก subtotal - total_price
   if ($discount_total <= 0 && $grand_total > 0) {
     $derived = $items_subtotal - $grand_total;
     if ($derived > 0) { $discount_total = $derived; }
   }
 }
-
-/* ให้ grand_total เคารพ discount ล่าสุด */
 $grand_total = max(0.0, $items_subtotal - $discount_total);
 
 /* ---------- ดึงรายละเอียดคูปอง ---------- */
-$coupon_info = null; // {type, value, uses_limit, per_user_limit, max_discount, applies_to}
+$coupon_info = null;
 if ($coupon_code !== '' && table_exists($conn,'coupons')) {
   $cols = [
     "c.type","c.value",
@@ -159,6 +154,9 @@ $payBadge = [
   'expired'  => 'danger',
   'refunded' => 'info text-dark',
 ];
+
+$createdFmt = $order['created_at'] ? date('d/m/Y H:i', strtotime($order['created_at'])) : '-';
+$updatedFmt = $order['updated_at'] ? date('d/m/Y H:i', strtotime($order['updated_at'])) : '-';
 ?>
 <!doctype html>
 <html lang="th">
@@ -170,17 +168,180 @@ $payBadge = [
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css">
   <style>
-    .coupon-badge{background:#eef2ff;color:#3730a3;border-radius:999px;padding:.25rem .6rem;font-weight:700}
+    :root{
+      --bg:#f6f8fb;
+      --pri:#2563eb;
+      --pri2:#4f46e5;
+      --line:#e5e7eb;
+      --ink:#0f172a;
+      --muted:#6b7280;
+    }
+  
+    .page-head{
+      border-radius:20px;
+      padding:16px 18px 14px;
+      background:linear-gradient(135deg,var(--pri)0%,var(--pri2)55%,#0ea5e9 100%);
+      color:#fff;
+      box-shadow:0 14px 36px rgba(37,99,235,.2);
+    }
+    .page-head h3{margin:0;font-weight:700;letter-spacing:.01em;}
+    .page-head-sub{font-size:.9rem;opacity:.92;margin-top:4px;}
+    .summary-pills{
+      display:flex;flex-wrap:wrap;gap:10px;
+    }
+    .summary-pill{
+      min-width:180px;
+      padding:10px 16px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.55);
+      background:rgba(15,23,42,.05);
+      display:flex;align-items:center;gap:8px;
+      font-size:.9rem;
+      font-weight:600;
+      backdrop-filter:blur(4px);
+    }
+    .summary-pill i{font-size:1.1rem;}
+
+    .card-shell{
+      background:#fff;
+      border-radius:18px;
+      border:1px solid #e3e8f5;
+      box-shadow:0 16px 40px rgba(15,23,42,.06);
+    }
+
+    .status-card .label{
+      font-size:.82rem;
+      color:var(--muted);
+    }
+    .status-chip{
+      display:inline-flex;align-items:center;gap:.35rem;
+      padding:.25rem .7rem;
+      border-radius:999px;
+      font-size:.82rem;
+      font-weight:600;
+      background:#eef2ff;
+      color:#1e3a8a;
+    }
+
+    .timeline{
+      margin-top:10px;
+      border-radius:14px;
+      padding:10px 12px;
+      background:#f8fafc;
+      border:1px dashed #d4dbe8;
+      font-size:.8rem;
+      color:var(--muted);
+    }
+    .timeline div+div{margin-top:4px;}
+
+    .slip-thumb{
+      max-width:100%;
+      border-radius:14px;
+      border:1px solid #e2e8f0;
+      box-shadow:0 8px 20px rgba(15,23,42,.12);
+    }
+
+    /* table modern */
+    .table-modern{
+      margin:0;
+      font-size:.9rem;
+    }
+    .table-modern thead th{
+      background:#f5f7fc;
+      border-bottom:1px solid #e3e8f5;
+      font-weight:600;
+      color:#111827;
+    }
+    .table-modern tbody tr{
+      transition:background .12s;
+    }
+    .table-modern tbody tr:hover{
+      background:#f9fbff;
+    }
+    .table-modern td,.table-modern th{
+      vertical-align:middle;
+    }
+
+    .coupon-badge{
+      background:#eef2ff;
+      color:#3730a3;
+      border-radius:999px;
+      padding:.18rem .65rem;
+      font-weight:700;
+      font-size:.8rem;
+      border:1px solid #c7d2fe;
+    }
+
+    .address-card .label{
+      font-size:.85rem;
+      color:var(--muted);
+    }
+
+    /* mobile: table -> cards */
+    @media(max-width: 768px){
+      .table-modern thead{display:none;}
+      .table-modern tbody tr{
+        display:block;
+        margin:.6rem;
+        border-radius:14px;
+        border:1px solid #e5e7eb;
+        box-shadow:0 10px 26px rgba(15,23,42,.04);
+        padding:.55rem .65rem;
+      }
+      .table-modern tbody td{
+        display:flex;
+        justify-content:space-between;
+        border:0;
+        border-bottom:1px dashed #e5e7eb;
+        padding:.35rem 0;
+      }
+      .table-modern tbody td:last-child{
+        border-bottom:0;
+      }
+      .table-modern tbody td::before{
+        content:attr(data-label);
+        font-weight:600;
+        color:var(--muted);
+        padding-right:.75rem;
+        max-width:45%;
+      }
+      .page-head{padding:14px 14px;}
+      .summary-pill{min-width:0;}
+    }
   </style>
 </head>
 <body>
 <?php include __DIR__.'/includes/header.php'; ?>
 
-<div class="container py-5">
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <h3 class="mb-0">
-      <i class="bi bi-receipt"></i> คำสั่งซื้อ #<?= (int)$order['id'] ?>
-    </h3>
+<div class="container py-4">
+
+  <!-- หัวออเดอร์ -->
+  <div class="page-head mb-3">
+    <div class="d-flex justify-content-between flex-wrap gap-3 align-items-start">
+      <div>
+        <div class="text-white-50 small">รายละเอียดคำสั่งซื้อ</div>
+        <h3>#<?= (int)$order['id'] ?></h3>
+        <div class="page-head-sub">
+          สร้างเมื่อ <?= h($createdFmt) ?>
+          <?php if($updatedFmt !== '-'): ?>
+            • อัปเดตล่าสุด <?= h($updatedFmt) ?>
+          <?php endif; ?>
+        </div>
+      </div>
+      <div class="summary-pills">
+        <div class="summary-pill">
+          <i class="bi bi-list-ul"></i>
+          <span>ทั้งหมด <?= count($items) ?> รายการ</span>
+        </div>
+        <div class="summary-pill">
+          <i class="bi bi-cash-stack"></i>
+          <span>ยอดสุทธิ <?= baht($grand_total) ?> ฿</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-3">
     <a href="my_orders.php" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-arrow-left"></i> กลับรายการของฉัน
     </a>
@@ -189,44 +350,53 @@ $payBadge = [
   <div class="row g-3">
     <!-- สรุปสถานะ -->
     <div class="col-lg-4">
-      <div class="card h-100 shadow-sm">
-        <div class="card-header fw-bold">สถานะคำสั่งซื้อ</div>
-        <div class="card-body">
-          <p class="mb-1"><small class="text-muted">วันที่สั่งซื้อ</small><br><?= h($order['created_at']) ?></p>
-          <?php if (!empty($order['updated_at'])): ?>
-            <p class="mb-1"><small class="text-muted">อัปเดตล่าสุด</small><br><?= h($order['updated_at']) ?></p>
-          <?php endif; ?>
-
-          <p class="mb-1">
-            <small class="text-muted">สถานะออเดอร์</small><br>
+      <div class="card-shell h-100">
+        <div class="p-3 border-bottom">
+          <div class="fw-semibold"><i class="bi bi-clipboard-check me-1"></i> สถานะคำสั่งซื้อ</div>
+        </div>
+        <div class="p-3 status-card">
+          <div class="mb-2">
+            <div class="label">สถานะออเดอร์</div>
             <?php $ob = $orderBadge[$order['order_status']] ?? 'secondary'; ?>
-            <span class="badge bg-<?= $ob ?>"><?= h(tOrderStatus((string)$order['order_status'])) ?></span>
-          </p>
+            <span class="status-chip">
+              <span class="dot bg-<?= $ob ?> rounded-circle" style="width:8px;height:8px;"></span>
+              <?= h(tOrderStatus((string)$order['order_status'])) ?>
+            </span>
+          </div>
 
-          <p class="mb-1">
-            <small class="text-muted">การชำระเงิน</small><br>
-            <?= h(tPayMethod((string)$order['payment_method'])) ?>
-          </p>
+          <div class="mb-2">
+            <div class="label">วิธีชำระเงิน</div>
+            <div><?= h(tPayMethod((string)$order['payment_method'])) ?></div>
+          </div>
 
-          <p class="mb-1">
-            <small class="text-muted">สถานะชำระเงิน</small><br>
+          <div class="mb-2">
+            <div class="label">สถานะการชำระเงิน</div>
             <?php $pb = $payBadge[$order['payment_status']] ?? 'secondary'; ?>
-            <span class="badge bg-<?= $pb ?>"><?= h(tPaymentStatus((string)$order['payment_status'])) ?></span>
-          </p>
+            <span class="badge bg-<?= $pb ?>">
+              <?= h(tPaymentStatus((string)$order['payment_status'])) ?>
+            </span>
+          </div>
+
+          <div class="timeline mt-3">
+            <div><i class="bi bi-dot"></i> สร้างคำสั่งซื้อ: <?= h($createdFmt) ?></div>
+            <?php if($updatedFmt !== '-'): ?>
+              <div><i class="bi bi-dot"></i> อัปเดตล่าสุด: <?= h($updatedFmt) ?></div>
+            <?php endif; ?>
+          </div>
 
           <?php if ($order['payment_method']==='bank' && !in_array($order['payment_status'], ['paid','expired','refunded'])): ?>
             <div class="mt-3 d-grid">
               <a class="btn btn-warning" href="upload_slip.php?id=<?= (int)$order['id'] ?>">
-                อัปโหลดสลิปโอนเงิน
+                <i class="bi bi-upload me-1"></i> อัปโหลดสลิปโอนเงิน
               </a>
             </div>
           <?php endif; ?>
 
           <?php if (!empty($order['slip_image'])): ?>
             <div class="mt-3">
-              <small class="text-muted d-block mb-1">สลิปที่อัปโหลด</small>
+              <div class="label mb-1">สลิปที่อัปโหลด</div>
               <a href="uploads/slips/<?= h($order['slip_image']) ?>" target="_blank">
-                <img src="uploads/slips/<?= h($order['slip_image']) ?>" class="border rounded" style="max-width: 100%; height: auto;" alt="สลิปโอนเงิน">
+                <img src="uploads/slips/<?= h($order['slip_image']) ?>" class="slip-thumb" alt="สลิปโอนเงิน">
               </a>
             </div>
           <?php endif; ?>
@@ -234,18 +404,21 @@ $payBadge = [
       </div>
     </div>
 
-    <!-- รายการสินค้า + สรุปราคา + ที่อยู่ -->
+    <!-- รายการสินค้า + ที่อยู่ -->
     <div class="col-lg-8">
-      <div class="card shadow-sm mb-3">
-        <div class="card-header fw-bold">รายการสินค้า</div>
+      <div class="card-shell mb-3">
+        <div class="p-3 border-bottom">
+          <div class="fw-semibold"><i class="bi bi-box-seam me-1"></i> รายการสินค้า</div>
+        </div>
+
         <?php if (empty($items)): ?>
-          <div class="card-body">
+          <div class="p-3">
             <div class="alert alert-info mb-0">ไม่มีรายการสินค้าในออเดอร์นี้</div>
           </div>
         <?php else: ?>
           <div class="table-responsive">
-            <table class="table align-middle mb-0">
-              <thead class="table-light">
+            <table class="table table-modern align-middle mb-0">
+              <thead>
                 <tr>
                   <th>สินค้า</th>
                   <th class="text-center" style="width:120px;">จำนวน</th>
@@ -259,15 +432,17 @@ $payBadge = [
                 $sum = (float)$it['quantity'] * (float)$it['unit_price'];
               ?>
                 <tr>
-                  <td>
+                  <td data-label="สินค้า">
                     <div class="d-flex align-items-center gap-3">
                       <img src="<?= h($img) ?>" width="56" height="56" class="rounded border" style="object-fit:cover" alt="">
-                      <div class="fw-semibold"><?= h($it['product_name'] ?? ('#'.$it['product_id'])) ?></div>
+                      <div class="fw-semibold">
+                        <?= h($it['product_name'] ?? ('#'.$it['product_id'])) ?>
+                      </div>
                     </div>
                   </td>
-                  <td class="text-center"><?= (int)$it['quantity'] ?></td>
-                  <td class="text-end"><?= baht($it['unit_price']) ?> ฿</td>
-                  <td class="text-end"><?= baht($sum) ?> ฿</td>
+                  <td class="text-center" data-label="จำนวน"><?= (int)$it['quantity'] ?></td>
+                  <td class="text-end" data-label="ราคาต่อหน่วย"><?= baht($it['unit_price']) ?> ฿</td>
+                  <td class="text-end" data-label="รวม"><?= baht($sum) ?> ฿</td>
                 </tr>
               <?php endforeach; ?>
               </tbody>
@@ -291,7 +466,7 @@ $payBadge = [
                 </tr>
                 <tr>
                   <th colspan="3" class="text-end fs-5">ยอดสุทธิ</th>
-                  <th class="text-end fs-5"><?= baht($grand_total) ?> ฿</th>
+                  <th class="text-end fs-5 text-primary"><?= baht($grand_total) ?> ฿</th>
                 </tr>
               </tfoot>
             </table>
@@ -332,12 +507,23 @@ $payBadge = [
         <?php endif; ?>
       </div>
 
-      <div class="card shadow-sm">
-        <div class="card-header fw-bold">ที่อยู่จัดส่ง</div>
-        <div class="card-body">
-          <div class="mb-1"><strong>ชื่อผู้รับ:</strong> <?= h($order['shipping_name'] ?: '-') ?></div>
-          <div class="mb-1"><strong>โทร:</strong> <?= h($order['shipping_phone'] ?: '-') ?></div>
-          <div><strong>ที่อยู่:</strong> <div><?= nl2br(h($order['shipping_address'] ?: '-')) ?></div></div>
+      <div class="card-shell address-card">
+        <div class="p-3 border-bottom">
+          <div class="fw-semibold"><i class="bi bi-geo-alt me-1"></i> ที่อยู่จัดส่ง</div>
+        </div>
+        <div class="p-3">
+          <div class="mb-2">
+            <div class="label">ชื่อผู้รับ</div>
+            <div><?= h($order['shipping_name'] ?: '-') ?></div>
+          </div>
+          <div class="mb-2">
+            <div class="label">เบอร์ติดต่อ</div>
+            <div><?= h($order['shipping_phone'] ?: '-') ?></div>
+          </div>
+          <div>
+            <div class="label">ที่อยู่เต็ม</div>
+            <div><?= nl2br(h($order['shipping_address'] ?: '-')) ?></div>
+          </div>
         </div>
       </div>
     </div>

@@ -298,11 +298,6 @@ $cover = $req['image_path'] ?: ( ($gallery[0]['filename'] ?? '') ? 'assets/img/'
             <label class="form-label">ราคาเสนอ (บาท)</label>
             <input class="form-control" type="number" step="0.01" name="offer_price" value="<?=h($req['offer_price'])?>">
           </div>
-          <div class="col-md-6">
-            <label class="form-label">รหัสสินค้าที่เลือก (กรณีซื้อใหม่)</label>
-            <input class="form-control" type="number" name="selected_product_id" value="<?=h($req['selected_product_id'])?>">
-            <div class="form-text">ระบบจะยอมรับเฉพาะ ID สินค้าที่มีอยู่จริง</div>
-          </div>
           <div class="col-12">
             <button class="btn btn-primary"><i class="bi bi-save"></i> บันทึก</button>
           </div>

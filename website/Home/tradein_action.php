@@ -150,7 +150,7 @@ if ($shouldIssue) {
       $minOrder    = 0.00;
       $usesLimit   = 1;     // ทั้งร้านใช้ได้รวม 1 ครั้ง
       $perUser     = 1;     // ต่อผู้ใช้ 1 ครั้ง
-      $appliesTo   = 'all'; // ใช้ได้ทุกหมวด (หรือเปลี่ยนเป็น 'tradein' ถ้าต้องการ)
+      $appliesTo   = 'tradein'; // ใช้ได้ tradein
       $stackable   = 0;     // ไม่ซ้อนกับราคาลด
 
       if ($st = $conn->prepare("

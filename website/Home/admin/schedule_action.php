@@ -2,98 +2,169 @@
 // Home/admin/schedule_action.php
 if (session_status()===PHP_SESSION_NONE){ session_start(); }
 header('Content-Type: application/json; charset=utf-8');
-require __DIR__ . '/../includes/db.php';
 
+require __DIR__ . '/../includes/db.php';
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
-  echo json_encode(['ok'=>false,'error'=>'unauthorized']); exit;
-}
-function has_col(mysqli $conn, string $table, string $col): bool {
-  $table = preg_replace('/[^a-zA-Z0-9_]/','',$table);
-  $col   = preg_replace('/[^a-zA-Z0-9_]/','',$col);
-  $q = $conn->query("SHOW COLUMNS FROM `$table` LIKE '$col'");
-  return $q && $q->num_rows > 0;
+    echo json_encode(['ok'=>false,'error'=>'forbidden']); exit;
 }
 
 $action   = $_POST['action'] ?? '';
-$prop_id  = (int)($_POST['prop_id'] ?? 0);
-$ticket_id= (int)($_POST['ticket_id'] ?? 0);
+$propId   = (int)($_POST['prop_id']   ?? 0);
+$ticketId = (int)($_POST['ticket_id'] ?? 0);
 
-if($action==='cancel-prop'){
-  if($prop_id<=0){ echo json_encode(['ok'=>false,'error'=>'invalid']); exit; }
-  if($st=$conn->prepare("UPDATE schedule_proposals SET status='cancelled',updated_at=NOW() WHERE id=? AND status='pending'")){
-    $st->bind_param('i',$prop_id);
-    $ok=$st->execute(); $st->close();
-    echo json_encode(['ok'=>$ok]); exit;
-  }
-  echo json_encode(['ok'=>false,'error'=>'update_failed']); exit;
+function has_col(mysqli $conn, string $table, string $col): bool {
+    $table = preg_replace('/[^a-zA-Z0-9_]/','',$table);
+    $col   = preg_replace('/[^a-zA-Z0-9_]/','',$col);
+    $q = $conn->query("SHOW COLUMNS FROM `$table` LIKE '$col'");
+    return $q && $q->num_rows > 0;
 }
 
-if($action==='force-confirm'){
-  if($prop_id<=0 || $ticket_id<=0){ echo json_encode(['ok'=>false,'error'=>'invalid']); exit; }
+if (!in_array($action, ['cancel-prop','force-confirm','clear-appointment'], true)) {
+    echo json_encode(['ok'=>false,'error'=>'bad_action']); exit;
+}
+if ($ticketId <= 0) {
+    echo json_encode(['ok'=>false,'error'=>'no_ticket']); exit;
+}
 
-  // ดึงข้อเสนอ
-  $p=null;
-  if($st=$conn->prepare("SELECT * FROM schedule_proposals WHERE id=? AND ticket_type='repair' LIMIT 1")){
-    $st->bind_param('i',$prop_id); $st->execute();
-    $p=$st->get_result()->fetch_assoc(); $st->close();
-  }
-  if(!$p){ echo json_encode(['ok'=>false,'error'=>'proposal_not_found']); exit; }
+try{
+    $conn->begin_transaction();
 
-  // ยืนยันข้อเสนอ
-  if($st=$conn->prepare("UPDATE schedule_proposals SET status='accepted',updated_at=NOW() WHERE id=?")){
-    $st->bind_param('i',$prop_id); $st->execute(); $st->close();
-  }
-  // ยกเลิกข้อเสนออื่นๆ ของใบงานเดียวกันที่ยัง pending
-  if($st=$conn->prepare("UPDATE schedule_proposals SET status='cancelled',updated_at=NOW() WHERE ticket_type='repair' AND ticket_id=? AND id<>? AND status='pending'")){
-    $st->bind_param('ii',$ticket_id,$prop_id); $st->execute(); $st->close();
-  }
+    if ($action === 'cancel-prop') {
+        if ($propId <= 0) { throw new Exception('no_prop'); }
+        $st = $conn->prepare("
+          UPDATE schedule_proposals
+          SET status='cancelled', updated_at=NOW()
+          WHERE id=? AND ticket_type='repair'
+        ");
+        $st->bind_param('i', $propId);
+        $st->execute();
+        $st->close();
 
-  // อัปเดต service_tickets (ตั้งเวลา + สถานะ)
-  $set = [];
-  if (has_col($conn,'service_tickets','appointment_start')) $set[]="appointment_start='". $conn->real_escape_string($p['slot_start'])."'";
-  if (has_col($conn,'service_tickets','appointment_end'))   $set[]="appointment_end='".   $conn->real_escape_string($p['slot_end'])."'";
-  if (has_col($conn,'service_tickets','appointment_status'))$set[]="appointment_status='confirmed'";
-  if (has_col($conn,'service_tickets','schedule_status'))   $set[]="schedule_status='confirmed'";
-  if ($set){
-    $conn->query("UPDATE service_tickets SET ".implode(',', $set)." WHERE id=".$ticket_id);
-  }
+    } elseif ($action === 'force-confirm') {
+        if ($propId <= 0) { throw new Exception('no_prop'); }
 
-  // แจ้งเตือน
-  $hasNoti = ($conn->query("SHOW TABLES LIKE 'notifications'")->num_rows>0);
-  if($hasNoti){
-    // หาเจ้าของใบงาน
-    $t=null;
-    if($st=$conn->prepare("SELECT user_id FROM service_tickets WHERE id=?")){
-      $st->bind_param('i',$ticket_id); $st->execute();
-      $t=$st->get_result()->fetch_assoc(); $st->close();
+        // ดึง proposal เพื่อใช้เวลานัด
+        $st = $conn->prepare("
+          SELECT * FROM schedule_proposals
+          WHERE id=? AND ticket_type='repair' AND ticket_id=?
+          LIMIT 1
+        ");
+        $st->bind_param('ii', $propId, $ticketId);
+        $st->execute();
+        $prop = $st->get_result()->fetch_assoc();
+        $st->close();
+        if (!$prop) { throw new Exception('prop_not_found'); }
+
+        $start = $prop['slot_start'];
+        $end   = $prop['slot_end'];
+        if (!$end) {
+            $dur = (int)($prop['duration_minutes'] ?? 60);
+            if ($dur <= 0) $dur = 60;
+            $ts = strtotime($start ?: 'now');
+            $start = date('Y-m-d H:i:s', $ts);
+            $end   = date('Y-m-d H:i:s', $ts + $dur*60);
+        }
+
+        // mark proposal นี้เป็น accepted
+        $st = $conn->prepare("UPDATE schedule_proposals SET status='accepted', updated_at=NOW() WHERE id=?");
+        $st->bind_param('i', $propId);
+        $st->execute();
+        $st->close();
+
+        // อื่น ๆ ที่ยัง pending ให้ declined
+        $st = $conn->prepare("
+          UPDATE schedule_proposals
+          SET status='declined', updated_at=NOW()
+          WHERE ticket_type='repair' AND ticket_id=? AND id<>? AND status='pending'
+        ");
+        $st->bind_param('ii', $ticketId, $propId);
+        $st->execute();
+        $st->close();
+
+        // เขียนลงใบงานหลัก
+        $hasAppStart = has_col($conn,'service_tickets','appointment_start');
+        $hasAppEnd   = has_col($conn,'service_tickets','appointment_end');
+        $hasAppStat  = has_col($conn,'service_tickets','appointment_status');
+        $hasSchStat  = has_col($conn,'service_tickets','schedule_status');
+        $hasSchedAt  = has_col($conn,'service_tickets','scheduled_at');
+
+        $set   = [];
+        $types = '';
+        $vals  = [];
+
+        if ($hasAppStart) { $set[]='appointment_start=?'; $types.='s'; $vals[]=$start; }
+        if ($hasAppEnd)   { $set[]='appointment_end=?';   $types.='s'; $vals[]=$end; }
+        if ($hasAppStat)  { $set[]="appointment_status='confirmed'"; }
+        if ($hasSchStat)  { $set[]="schedule_status='confirmed'"; }
+        if ($hasSchedAt)  { $set[]='scheduled_at=?';       $types.='s'; $vals[]=$start; }
+
+        $set[] = 'status=?';        $types.='s'; $vals[]='confirm';
+        $set[] = 'updated_at=NOW()';
+
+        $sql = "UPDATE service_tickets SET ".implode(',', $set)." WHERE id=?";
+        $types .= 'i';
+        $vals[] = $ticketId;
+
+        $st = $conn->prepare($sql);
+        $st->bind_param($types, ...$vals);
+        $st->execute();
+        $st->close();
+
+        // log
+        if ($st = $conn->prepare("INSERT INTO service_status_logs (ticket_id,status,note,created_at) VALUES (?,?,?,NOW())")) {
+            $statusLog = 'confirm';
+            $note = 'แอดมินยืนยันเวลานัดให้ลูกค้า';
+            $st->bind_param('iss', $ticketId, $statusLog, $note);
+            $st->execute();
+            $st->close();
+        }
+
+    } elseif ($action === 'clear-appointment') {
+
+        // เคลียร์ทุก field นัดในใบงาน + schedule_proposals
+        $hasAppStart = has_col($conn,'service_tickets','appointment_start');
+        $hasAppEnd   = has_col($conn,'service_tickets','appointment_end');
+        $hasAppStat  = has_col($conn,'service_tickets','appointment_status');
+        $hasSchStat  = has_col($conn,'service_tickets','schedule_status');
+        $hasSchedAt  = has_col($conn,'service_tickets','scheduled_at');
+
+        $set = [];
+        if ($hasAppStart) $set[]="appointment_start=NULL";
+        if ($hasAppEnd)   $set[]="appointment_end=NULL";
+        if ($hasAppStat)  $set[]="appointment_status='none'";
+        if ($hasSchStat)  $set[]="schedule_status='none'";
+        if ($hasSchedAt)  $set[]="scheduled_at=NULL";
+        $set[] = "updated_at=NOW()";
+
+        $sql = "UPDATE service_tickets SET ".implode(',', $set)." WHERE id=?";
+        $st  = $conn->prepare($sql);
+        $st->bind_param('i', $ticketId);
+        $st->execute();
+        $st->close();
+
+        // ยกเลิก proposal ที่เคย pending/accepted
+        $st = $conn->prepare("
+          UPDATE schedule_proposals
+          SET status='cancelled', updated_at=NOW()
+          WHERE ticket_type='repair' AND ticket_id=? AND status IN ('pending','accepted')
+        ");
+        $st->bind_param('i', $ticketId);
+        $st->execute();
+        $st->close();
+
+        // log แจ้งเตือนว่าเคลียร์นัดแล้ว (ไม่เปลี่ยนสถานะใบงาน)
+        if ($st = $conn->prepare("INSERT INTO service_status_logs (ticket_id,status,note,created_at) VALUES (?,?,?,NOW())")) {
+            $statusLog = 'queued';
+            $note = 'แอดมินล้างนัดหมายที่ตั้งไว้';
+            $st->bind_param('iss', $ticketId, $statusLog, $note);
+            $st->execute();
+            $st->close();
+        }
     }
-    if($t){
-      if($st=$conn->prepare("INSERT INTO notifications(user_id,title,message,type,ref_id,is_read,created_at) VALUES(?,?,?,?,?,0,NOW())")){
-        $title='ยืนยันนัดหมายซ่อมแล้ว';
-        $msg='ระบบยืนยันนัดหมายตามเวลาที่เลือก';
-        $type='schedule_confirmed';
-        $ref=$ticket_id;
-        $st->bind_param('isssi', $t['user_id'], $title, $msg, $type, $ref);
-        $st->execute(); $st->close();
-      }
-    }
-  }
 
-  echo json_encode(['ok'=>true]); exit;
+    $conn->commit();
+    echo json_encode(['ok'=>true]);
+}catch(Throwable $e){
+    $conn->rollback();
+    echo json_encode(['ok'=>false,'error'=>'internal']);
 }
-
-if($action==='clear-appointment'){
-  if($ticket_id<=0){ echo json_encode(['ok'=>false,'error'=>'invalid']); exit; }
-  $sets = [];
-  if (has_col($conn,'service_tickets','appointment_start')) $sets[]="appointment_start=NULL";
-  if (has_col($conn,'service_tickets','appointment_end'))   $sets[]="appointment_end=NULL";
-  if (has_col($conn,'service_tickets','appointment_status'))$sets[]="appointment_status='none'";
-  if (has_col($conn,'service_tickets','schedule_status'))   $sets[]="schedule_status='none'";
-  if ($sets){
-    $ok = $conn->query("UPDATE service_tickets SET ".implode(',', $sets)." WHERE id=".$ticket_id);
-    echo json_encode(['ok'=> (bool)$ok]); exit;
-  }
-  echo json_encode(['ok'=>false,'error'=>'no_columns']); exit;
-}
-
-echo json_encode(['ok'=>false,'error'=>'unknown_action']);

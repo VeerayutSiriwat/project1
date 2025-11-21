@@ -1,4 +1,4 @@
-<?php
+<?php 
 // Home/service_my.php
 if (session_status()===PHP_SESSION_NONE){ session_start(); }
 
@@ -65,6 +65,7 @@ if ($st = $conn->prepare("
   SELECT
     st.id, st.device_type, st.brand, st.model, st.phone,
     st.desired_date, st.urgency, st.image_path, st.created_at, st.updated_at,
+    st.payment_status,
     COALESCE(
       (SELECT l.status FROM service_status_logs l
        WHERE l.ticket_id = st.id
@@ -119,6 +120,18 @@ $repairStatusClass = [
   'waiting_parts'=>'warning text-dark','repairing'=>'primary',
   'done'=>'success','cancelled'=>'danger',
 ];
+/* ===== MAP สถานะการเงิน ===== */
+$payStatusMap = [
+  'unpaid'  => 'ยังไม่ชำระ',
+  'pending' => 'รอตรวจสอบ',
+  'paid'    => 'ชำระแล้ว'
+];
+
+$payStatusClass = [
+  'unpaid'  => 'danger',
+  'pending' => 'warning text-dark',
+  'paid'    => 'success'
+];
 
 $tradeStatusMap = [
   'submitted'=>'ส่งคำขอแล้ว','review'=>'กำลังประเมิน','offered'=>'มีราคาเสนอ',
@@ -136,14 +149,14 @@ $tradeStatusClass = [
   <meta charset="utf-8">
   <title>สถานะงานซ่อม/เทิร์น | WEB APP</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
   <style>
     :root{
       --bg:#f6f8fb; --card:#fff; --line:#e9eef3; --ink:#0b1a37; --muted:#6b7280;
       --pri:#2563eb; --pri2:#4f46e5;
     }
-    body{background:linear-gradient(180deg,#f8fbff,#f6f8fb 50%,#f5f7fa);}
     .page-head{
       border-radius:20px; color:#fff; padding:18px 18px 12px;
       background:linear-gradient(135deg,var(--pri) 0%, var(--pri2) 55%, #0ea5e9 100%);
@@ -152,11 +165,11 @@ $tradeStatusClass = [
     .tabs{
       margin-top:12px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:6px; display:flex; gap:6px; flex-wrap:wrap;
     }
-    .tab-btn{ border:none; background:transparent; color:#536078; padding:8px 14px; border-radius:10px; font-weight:700; }
+    .tab-btn{ border:none; background:transparent; color:#e5edff; padding:8px 14px; border-radius:999px; font-weight:700; font-size:.9rem; }
     .tab-btn.active{ color:#0b1a37; background:#eef3ff; }
     .section{background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 18px 48px rgba(2,6,23,.06)}
     .sec-head{display:flex;align-items:center;gap:.6rem;padding:14px 18px;border-bottom:1px solid #eef2f6;background:linear-gradient(180deg,#ffffff,#fafcff)}
-    .sec-head .pill{margin-left:auto;background:#f1f5ff;border:1px solid #dbe6ff;border-radius:999px;padding:.25rem .6rem;font-weight:700}
+    .sec-head .pill{margin-left:auto;background:#f1f5ff;border:1px solid #dbe6ff;border-radius:999px;padding:.25rem .7rem;font-weight:700;font-size:.78rem}
     .toolbar{ padding:10px 16px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .tbl-wrap{overflow:auto}
     .table-modern{margin:0}
@@ -166,10 +179,54 @@ $tradeStatusClass = [
     .table-modern td,.table-modern th{vertical-align:middle}
     .thumb{width:46px;height:46px;border-radius:10px;object-fit:cover;border:1px solid #e6edf6;background:#fff}
     .badge{padding:.45rem .6rem;font-weight:800}
-    .tag-soft{display:inline-flex;align-items:center;gap:.35rem;background:#eef2f7;border:1px solid #e5ecf6;border-radius:999px;padding:.2rem .55rem;font-weight:700}
+    .tag-soft{display:inline-flex;align-items:center;gap:.35rem;background:#eef2f7;border:1px solid #e5ecf6;border-radius:999px;padding:.2rem .55rem;font-weight:700;font-size:.8rem;color:#334155}
     .row-urgent{box-shadow: inset 0 0 0 9999px rgba(255, 0, 0, .02);}
-    .legend .chip{display:inline-flex;align-items:center;gap:.4rem;padding:.25rem .55rem;border:1px solid var(--line);border-radius:999px;background:#fff;font-weight:600;color:#334155}
-    .legend .dot{width:8px;height:8px;border-radius:999px;display:inline-block}
+
+    /* ===== iOS glass legend chips ===== */
+    .legend{
+      display:flex;
+      flex-wrap:wrap;
+      gap:.5rem;
+    }
+    .legend .chip{
+      position:relative;
+      display:inline-flex;
+      align-items:center;
+      gap:.45rem;
+
+      padding:.32rem .9rem;
+      min-height:32px;
+      border-radius:999px;
+
+      font-weight:600;
+      font-size:.8rem;
+      color:#f9fafb;
+      letter-spacing:.01em;
+      white-space:nowrap;
+
+      background:linear-gradient(135deg,
+        rgba(255,255,255,.26),
+        rgba(255,255,255,.10)
+      );
+      border:1px solid rgba(255,255,255,.65);
+      box-shadow:
+        0 10px 26px rgba(15,23,42,.35),
+        inset 0 0 0 0.5px rgba(255,255,255,.7);
+      backdrop-filter:blur(14px);
+      -webkit-backdrop-filter:blur(14px);
+    }
+    .legend .chip i{
+      font-size:1rem;
+      opacity:.96;
+    }
+    .legend .dot{
+      width:9px;
+      height:9px;
+      border-radius:999px;
+      display:inline-block;
+      box-shadow:0 0 0 1px rgba(15,23,42,.3), 0 0 12px rgba(255,255,255,.6);
+    }
+
     /* mobile cards */
     @media (max-width: 992px){
       .table-modern thead{display:none}
@@ -190,17 +247,33 @@ $tradeStatusClass = [
     <div class="page-head">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
         <h3 class="m-0"><i class="bi bi-person-check me-2"></i>สถานะงานซ่อม/เทิร์น</h3>
-        <div class="legend d-flex flex-wrap gap-2">
-          <span class="chip"><span class="dot" style="background:#6c757d"></span> รอดำเนินการ</span>
-          <span class="chip"><span class="dot" style="background:#0d6efd"></span> กำลังดำเนินการ</span>
-          <span class="chip"><span class="dot" style="background:#198754"></span> เสร็จสิ้น</span>
-          <span class="chip"><span class="dot" style="background:#dc3545"></span> ยกเลิก/ปฏิเสธ</span>
+        <div class="legend">
+          <span class="chip">
+            <span class="dot" style="background:#6c757d"></span>
+            รอดำเนินการ
+          </span>
+          <span class="chip">
+            <span class="dot" style="background:#0d6efd"></span>
+            กำลังดำเนินการ
+          </span>
+          <span class="chip">
+            <span class="dot" style="background:#198754"></span>
+            เสร็จสิ้น
+          </span>
+          <span class="chip">
+            <span class="dot" style="background:#dc3545"></span>
+            ยกเลิก/ปฏิเสธ
+          </span>
         </div>
       </div>
 
       <div class="tabs" role="tablist">
-        <button class="tab-btn active" data-target="#tab-repair"  role="tab" aria-selected="true"><i class="bi bi-wrench-adjustable me-1"></i> งานซ่อม (<?=count($repair)?>)</button>
-        <button class="tab-btn"         data-target="#tab-tradein" role="tab" aria-selected="false"><i class="bi bi-arrow-left-right me-1"></i> เทิร์น (<?=count($tradein)?>)</button>
+        <button class="tab-btn active" data-target="#tab-repair"  role="tab" aria-selected="true">
+          <i class="bi bi-wrench-adjustable me-1"></i> งานซ่อม (<?=count($repair)?>)
+        </button>
+        <button class="tab-btn"         data-target="#tab-tradein" role="tab" aria-selected="false">
+          <i class="bi bi-arrow-left-right me-1"></i> เทิร์น (<?=count($tradein)?>)
+        </button>
       </div>
     </div>
 
@@ -234,6 +307,7 @@ $tradeStatusClass = [
               <th style="min-width:140px">นัดหมาย</th>
               <th style="min-width:110px">เร่งด่วน</th>
               <th style="min-width:160px">สถานะ</th>
+              <th style="min-width:150px">การชำระเงิน</th>
               <th style="min-width:160px">อัปเดตล่าสุด</th>
               <th style="min-width:160px"></th>
             </tr>
@@ -281,6 +355,14 @@ $tradeStatusClass = [
                 </span>
               </td>
               <td data-label="สถานะ"><span class="badge bg-<?= $rsClass ?>"><?= h($rsText) ?></span></td>
+              <td data-label="การชำระเงิน">
+              <?php 
+                $ps = strtolower($r['payment_status'] ?? 'unpaid');
+                $psText  = $payStatusMap[$ps]   ?? $ps;
+                $psClass = $payStatusClass[$ps] ?? 'secondary';
+              ?>
+              <span class="badge bg-<?= $psClass ?>"><?= h($psText) ?></span>
+            </td>
               <td data-label="อัปเดตล่าสุด" class="small text-muted"><?= h($r['updated_at']) ?></td>
               <td data-label="" class="text-end">
                 <a class="btn btn-sm btn-outline-primary" href="service_my_detail.php?type=repair&id=<?= (int)$r['id'] ?>">
@@ -388,7 +470,6 @@ $tradeStatusClass = [
         p.classList.toggle('d-none', !show);
         p.setAttribute('aria-hidden', show ? 'false' : 'true');
       });
-      // เคลียร์ค้นหาทุกครั้งที่ย้ายแท็บ (ถ้าอยากคงค่า คอมเมนต์สองบรรทัดถัดไป)
       const q = document.getElementById('q'); if(q){ q.value=''; filterTable(''); }
     });
   });
@@ -407,19 +488,18 @@ $tradeStatusClass = [
         tr.style.display = show ? '' : 'none';
         if(show) any = true;
       });
-      // ถ้าไม่เจออะไรเลย แสดง empty state ชั่วคราว
       const empty = tb.querySelector('[data-empty]');
       if(empty){ empty.style.display = any ? 'none' : ''; }
     });
   }
   q?.addEventListener('input', e=> filterTable(e.target.value));
 
-  // ปุ่มรีเฟรช (เคารพ header no-cache)
+  // ปุ่มรีเฟรช
   document.getElementById('btnRefresh')?.addEventListener('click', ()=>{
     location.replace('service_my.php');
   });
 
-  // คัดลอกเลขออเดอร์
+  // คัดลอกเลขงาน/คำขอ
   document.addEventListener('click', e=>{
     const b = e.target.closest('.copy'); if(!b) return;
     const v = b.getAttribute('data-copy')||'';

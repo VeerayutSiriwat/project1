@@ -33,38 +33,116 @@ function imgsrc($v){
 <meta charset="utf-8">
 <title>รถเข็นสินค้า | WEB APP</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
 <style>
   :root{
-    --bg:#f6f8fb; --card:#fff; --line:#e9eef5; --ink:#0b1a37; --muted:#6b7280;
-    --pri:#2563eb; --pri2:#4f46e5;
+    --bg:#f6f8fb;
+    --card:#ffffff;
+    --line:#e1ebf7;
+    --ink:#0b1a37;
+    --muted:#6b7280;
+    --pri:#2563eb;
+    --pri2:#4f46e5;
     --safe: 96px;
   }
-  html,body{height:100%}
-  body{min-height:100vh; display:flex; flex-direction:column; background:linear-gradient(180deg,#f8fbff,#f6f8fb 50%,#f5f7fa);}
-  main.page-content{flex:1 0 auto; padding-bottom: calc(var(--safe) + env(safe-area-inset-bottom, 0px));}
-  .card-glass{ border:1px solid var(--line); border-radius:18px; box-shadow:0 18px 60px rgba(2,6,23,.06); overflow:visible; background:var(--card);}
-  .page-head{ border-radius:20px; background:linear-gradient(135deg,var(--pri) 0%, var(--pri2) 55%, #0ea5e9 100%); color:#fff; padding:18px; box-shadow:0 8px 24px rgba(37,99,235,.15); }
-  .stepper{display:flex; gap:12px; flex-wrap:wrap; margin-top:8px}
-  .step{display:flex; align-items:center; gap:8px; color:#e6ecff; font-weight:600; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); padding:6px 12px; border-radius:999px;}
-  .step .num{width:24px; height:24px; border-radius:999px; display:grid; place-items:center; background:#fff; color:#1f2a44; font-weight:800; font-size:.85rem;}
-  .step.active{background:#fff; color:#0b1a37;}
-  .step.active .num{background:var(--pri); color:#fff;}
+  main.page-content{
+    flex:1 0 auto;
+    padding-bottom: calc(var(--safe) + env(safe-area-inset-bottom, 0px));
+  }
+  .page-shell{
+    max-width:1120px;
+  }
+
+  .card-glass{
+    border:1px solid var(--line);
+    border-radius:18px;
+    box-shadow:0 18px 60px rgba(2,6,23,.06);
+    overflow:visible;
+    background:var(--card);
+  }
+
+  .page-head{
+    border-radius:20px;
+    background:linear-gradient(135deg,var(--pri) 0%, var(--pri2) 55%, #0ea5e9 100%);
+    color:#fff;
+    padding:18px;
+    box-shadow:0 18px 48px rgba(37,99,235,.22);
+  }
+  .page-head h3{
+    font-weight:700;
+  }
+
+  .stepper{
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-top:8px;
+  }
+  .step{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    color:#e6ecff;
+    font-weight:600;
+    background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.2);
+    padding:6px 12px;
+    border-radius:999px;
+    font-size:.9rem;
+  }
+  .step .num{
+    width:24px;
+    height:24px;
+    border-radius:999px;
+    display:grid;
+    place-items:center;
+    background:#fff;
+    color:#1f2a44;
+    font-weight:800;
+    font-size:.85rem;
+  }
+  .step.active{
+    background:#fff;
+    color:#0b1a37;
+    box-shadow:0 10px 26px rgba(15,23,42,.2);
+  }
+  .step.active .num{
+    background:var(--pri);
+    color:#fff;
+  }
 
   .table> :not(caption)>*>*{border-color:#e9eef5}
-  .thumb{width:64px;height:64px;object-fit:cover;border-radius:12px;border:1px solid var(--line);background:#fff}
+  .thumb{
+    width:64px;
+    height:64px;
+    object-fit:cover;
+    border-radius:12px;
+    border:1px solid var(--line);
+    background:#fff;
+  }
 
   .qty-wrap{display:inline-flex; align-items:center;}
   .qty-btn{width:38px; height:38px; line-height:1;}
   .qty-input{width:76px; height:38px; text-align:center}
 
   .cart-bar{
-    position:sticky; bottom:max(env(safe-area-inset-bottom),0px); z-index:2;
-    background:linear-gradient(180deg,#ffffff,#f9fbff); border:1px solid var(--line); border-radius:14px;
-    box-shadow:0 14px 40px rgba(2,6,23,.08); padding:.75rem; margin:0 .5rem .75rem .5rem;
+    position:sticky;
+    bottom:max(env(safe-area-inset-bottom),0px);
+    z-index:2;
+    background:linear-gradient(180deg,#ffffff,#f9fbff);
+    border:1px solid var(--line);
+    border-radius:14px;
+    box-shadow:0 14px 40px rgba(2,6,23,.08);
+    padding:.75rem;
+    margin:0 .5rem .75rem .5rem;
   }
-  .edit-toggle.active{background:#e0e7ff;border-color:#c7d2fe}
+  .edit-toggle.active{
+    background:#e0e7ff;
+    border-color:#c7d2fe;
+  }
+
   .col-select{ width:42px; }
   .select-cell, .select-all-cell{ display:none; }
   .editing .select-cell, .editing .select-all-cell{ display:table-cell; }
@@ -72,12 +150,19 @@ function imgsrc($v){
   .price-old{ text-decoration:line-through; color:#94a3b8; }
   .price-now{ color:#16a34a; font-weight:700; }
 
+  .small-muted{font-size:.8rem;color:#94a3b8;}
+
   /* Mobile layout */
   @media (max-width: 992px){
     .table thead{ display:none; }
     .table tbody tr{
-      display:block; margin:12px 0;
-      border:1px solid var(--line); border-radius:14px; padding:12px; background:#fff;
+      display:block;
+      margin:12px 0;
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+      background:#fff;
+      box-shadow:0 8px 24px rgba(15,23,42,.05);
     }
     .table tbody td{ border:0; padding:.35rem 0; }
     .table tbody td[data-label="สินค้า"] .thumb{ width:56px;height:56px }
@@ -89,8 +174,15 @@ function imgsrc($v){
     .table tbody td:last-child{
       display:flex; justify-content:flex-end;
     }
-    .editing .select-cell{ display:block; order:-1; margin-bottom:.25rem }
-    .cart-bar{ padding:.65rem; border-radius:12px }
+    .editing .select-cell{
+      display:block;
+      order:-1;
+      margin-bottom:.25rem;
+    }
+    .cart-bar{
+      padding:.65rem;
+      border-radius:12px;
+    }
     .qty-btn{ width:36px; height:36px }
     .qty-input{ width:70px; height:36px }
   }
@@ -100,21 +192,29 @@ function imgsrc($v){
   }
 </style>
 </head>
-<body>
+<body class="bg-page">
 
 <?php include __DIR__.'/includes/header.php'; ?>
 
 <main class="page-content">
-  <div class="container py-4">
+  <div class="page-shell container py-4">
 
     <div class="page-head mb-3">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <h3 class="m-0"><i class="bi bi-cart3 me-2"></i>รถเข็นของฉัน</h3>
+        <div>
+          <h3 class="m-0">
+            <i class="bi bi-cart3 me-2"></i>
+            รถเข็นของฉัน
+          </h3>
+          <div class="small-muted mt-1">
+            ตรวจสอบจำนวนและรายการสินค้าให้เรียบร้อยก่อนดำเนินการชำระเงิน
+          </div>
+        </div>
         <div class="d-flex gap-2">
-          <button id="btnEdit" class="btn btn-light edit-toggle">
-            <i class="bi bi-pencil-square"></i> แก้ไข
+          <button id="btnEdit" class="btn btn-light btn-sm edit-toggle">
+            <i class="bi bi-pencil-square me-1"></i> แก้ไข
           </button>
-          <a href="products.php" class="btn btn-outline-light">
+          <a href="products.php" class="btn btn-outline-light btn-sm">
             <i class="bi bi-bag"></i> เลือกซื้อสินค้าต่อ
           </a>
         </div>
@@ -127,9 +227,13 @@ function imgsrc($v){
 
     <?php if (empty($items)): ?>
       <div class="card card-glass p-5 text-center text-muted">
-        <div class="mb-2" style="font-size:2rem">🧺</div>
+        <div class="mb-2" style="font-size:2.2rem">🧺</div>
         ยังไม่มีสินค้าในรถเข็น
-        <div class="mt-2"><a href="products.php" class="btn btn-primary">เริ่มช็อปเลย</a></div>
+        <div class="mt-2">
+          <a href="products.php" class="btn btn-primary">
+            <i class="bi bi-bag-plus me-1"></i> เริ่มช็อปเลย
+          </a>
+        </div>
       </div>
     <?php else: ?>
       <div class="card card-glass">
@@ -171,8 +275,10 @@ function imgsrc($v){
                       <div class="fw-semibold"><?= htmlspecialchars($it['name']) ?></div>
                       <div class="small text-muted">คงเหลือ: <?= (int)$it['stock'] ?></div>
                       <?php if($now < $base): ?>
-                        <div class="small"><span class="price-old"><?=baht($base)?> ฿</span>
-                          <span class="price-now ms-1"><?=baht($now)?> ฿</span></div>
+                        <div class="small">
+                          <span class="price-old"><?=baht($base)?> ฿</span>
+                          <span class="price-now ms-1"><?=baht($now)?> ฿</span>
+                        </div>
                       <?php else: ?>
                         <div class="small fw-semibold"><?=baht($now)?> ฿</div>
                       <?php endif; ?>
@@ -338,8 +444,11 @@ function imgsrc($v){
     const pid = tr.dataset.pid;
 
     const ok = await Swal.fire({
-      icon:'question', title:'ลบสินค้านี้?',
-      showCancelButton:true, confirmButtonText:'ลบ', cancelButtonText:'ยกเลิก'
+      icon:'question',
+      title:'ลบสินค้านี้?',
+      showCancelButton:true,
+      confirmButtonText:'ลบ',
+      cancelButtonText:'ยกเลิก'
     }).then(r=>r.isConfirmed);
     if(!ok) return;
 
@@ -354,8 +463,12 @@ function imgsrc($v){
     if(ids.length===0) return;
 
     const ok = await Swal.fire({
-      icon:'warning', title:'ลบที่เลือกทั้งหมด?', text:`จำนวน ${ids.length} รายการ`,
-      showCancelButton:true, confirmButtonText:'ลบ', cancelButtonText:'ยกเลิก'
+      icon:'warning',
+      title:'ลบที่เลือกทั้งหมด?',
+      text:`จำนวน ${ids.length} รายการ`,
+      showCancelButton:true,
+      confirmButtonText:'ลบ',
+      cancelButtonText:'ยกเลิก'
     }).then(r=>r.isConfirmed);
     if(!ok) return;
 

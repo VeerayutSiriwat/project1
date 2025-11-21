@@ -1,4 +1,4 @@
-<?php
+<?php 
 // Home/product.php
 session_start();
 require __DIR__ . '/includes/db.php';
@@ -21,11 +21,10 @@ function add_notify(mysqli $conn, int $userId, string $type, int $refId, string 
   $st->close();
 }
 
-/** รวม path helper: รองรับทั้งที่เก็บแบบ 'uploads/avatars/a.png' หรือ 'a.png' */
+/** รวม path helper */
 function resolve_upload_path(string $p): array {
   $p = trim($p);
   if ($p === '') return ['', ''];
-  // ถ้ามี uploads/ นำหน้าแล้วก็ใช้เลย
   if (preg_match('~^uploads/~', $p)) {
     $rel = $p;
   } else {
@@ -34,8 +33,6 @@ function resolve_upload_path(string $p): array {
   $abs = __DIR__ . '/' . $rel;
   return [$rel, $abs];
 }
-
-/** แปลงข้อมูลผู้ใช้ในแถว -> URL รูปโปรไฟล์จริง (มี fallback) */
 function avatarPathFromRow(array $row): string {
   if (!empty($row['avatar'])) {
     [$rel, $abs] = resolve_upload_path($row['avatar']);
@@ -88,7 +85,7 @@ if (empty($gallery)) {
 $hasDiscount = $product['discount_price'] && $product['discount_price'] < $product['price'];
 $price = $hasDiscount ? $product['discount_price'] : $product['price'];
 
-/* ------------ can review? (must have completed order) ------------ */
+/* ------------ can review? ------------ */
 $canReview = false;
 if ($loggedIn) {
   $st = $conn->prepare("
@@ -112,7 +109,7 @@ if (empty($_SESSION['csrf_review'])) {
 }
 $csrfReview = $_SESSION['csrf_review'];
 
-/* ------------ POST: add / edit / admin reply ------------ */
+/* ------------ POST review actions ------------ */
 $reviewErrors = [];
 $action = null; 
 if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['review_action'])) {
@@ -169,50 +166,43 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['review_action'])) {
     }
 
     if ($action === 'admin_reply') {
-    if (($userRole ?? 'user') !== 'admin') { $reviewErrors[] = 'เฉพาะผู้ดูแลระบบเท่านั้น'; }
-    if ($content === '' || mb_strlen($content) > 2000) { $reviewErrors[] = 'กรุณากรอกข้อความตอบกลับ'; }
-    if (!$parentId) { $reviewErrors[] = 'ไม่พบรีวิวต้นทาง'; }
+      if (($userRole ?? 'user') !== 'admin') { $reviewErrors[] = 'เฉพาะผู้ดูแลระบบเท่านั้น'; }
+      if ($content === '' || mb_strlen($content) > 2000) { $reviewErrors[] = 'กรุณากรอกข้อความตอบกลับ'; }
+      if (!$parentId) { $reviewErrors[] = 'ไม่พบรีวิวต้นทาง'; }
 
-    if (!$reviewErrors) {
-      // หาเจ้าของรีวิวต้นทางไว้ใช้แจ้งเตือน
-      $ownerId = 0;
-      $chk = $conn->prepare("SELECT user_id FROM product_reviews WHERE id=? AND parent_id IS NULL LIMIT 1");
-      $chk->bind_param("i", $parentId);
-      $chk->execute();
-      $ownerId = (int)($chk->get_result()->fetch_assoc()['user_id'] ?? 0);
-      $chk->close();
+      if (!$reviewErrors) {
+        $ownerId = 0;
+        $chk = $conn->prepare("SELECT user_id FROM product_reviews WHERE id=? AND parent_id IS NULL LIMIT 1");
+        $chk->bind_param("i", $parentId);
+        $chk->execute();
+        $ownerId = (int)($chk->get_result()->fetch_assoc()['user_id'] ?? 0);
+        $chk->close();
 
-      // บันทึกคำตอบของแอดมิน
-      $st = $conn->prepare("
-        INSERT INTO product_reviews (product_id, user_id, rating, content, parent_id, is_admin)
-        VALUES (?, ?, 0, ?, ?, 1)
-      ");
-      $uid = (int)$_SESSION['user_id'];
-      $st->bind_param("iisi", $id, $uid, $content, $parentId);
-      $st->execute();
-      $st->close();
+        $st = $conn->prepare("
+          INSERT INTO product_reviews (product_id, user_id, rating, content, parent_id, is_admin)
+          VALUES (?, ?, 0, ?, ?, 1)
+        ");
+        $uid = (int)$_SESSION['user_id'];
+        $st->bind_param("iisi", $id, $uid, $content, $parentId);
+        $st->execute();
+        $st->close();
 
-      // สร้างการแจ้งเตือนให้เจ้าของรีวิว (ถ้าไม่ใช่คนเดียวกับคนตอบ)
-      if ($ownerId > 0 && $ownerId !== $uid) {
-        $title = "ผู้ดูแลตอบกลับรีวิวของคุณ";
-        $msg   = "สินค้า: " . ($product['name'] ?? ('#'.$id)) . " • คลิกเพื่อดูคำตอบ";
-        // type = review_reply, ref_id = id ของรีวิวต้นทาง (จะใช้ anchor #review-<id> ได้)
-        add_notify($conn, $ownerId, 'review_reply', (int)$parentId, $title, $msg);
+        if ($ownerId > 0 && $ownerId !== $uid) {
+          $title = "ผู้ดูแลตอบกลับรีวิวของคุณ";
+          $msg   = "สินค้า: " . ($product['name'] ?? ('#'.$id)) . " • คลิกเพื่อดูคำตอบ";
+          add_notify($conn, $ownerId, 'review_reply', (int)$parentId, $title, $msg);
+        }
+
+        header("Location: product.php?id=".$id."#review-".$parentId);
+        exit;
       }
-
-      header("Location: product.php?id=".$id."#review-".$parentId);
-      exit;
     }
-  }
-  }
-}
 
     if ($action === 'delete_review') {
       if (!$loggedIn) { $reviewErrors[] = 'กรุณาเข้าสู่ระบบ'; }
       $reviewId = (int)($_POST['review_id'] ?? 0);
 
       if (!$reviewErrors && $reviewId > 0) {
-        // ยืนยันว่ารีวิวนี้เป็นของผู้ใช้ และเป็นรีวิวหลักเท่านั้น
         $chk = $conn->prepare("SELECT id FROM product_reviews WHERE id=? AND user_id=? AND parent_id IS NULL LIMIT 1");
         $uid = (int)$_SESSION['user_id'];
         $chk->bind_param("ii", $reviewId, $uid);
@@ -223,7 +213,6 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['review_action'])) {
         if (!$owned) {
           $reviewErrors[] = 'ไม่พบรีวิวของคุณหรือไม่สามารถลบได้';
         } else {
-          // ลบ replies ก่อน แล้วค่อยลบรีวิวหลัก
           $conn->begin_transaction();
           try {
             $d1 = $conn->prepare("DELETE FROM product_reviews WHERE parent_id=?");
@@ -246,8 +235,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['review_action'])) {
         }
       }
     }
+  }
+}
 
-/* ------------ load reviews & replies ------------ */
+/* ------------ load reviews ------------ */
 $reviews = [];
 $st = $conn->prepare("
   SELECT pr.*, u.username, u.full_name, u.avatar, u.profile_pic
@@ -290,13 +281,131 @@ if ($reviews) {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css">
   <style>
-    .thumbs { display:flex; gap:.5rem; margin-top:.75rem; flex-wrap:wrap; }
-    .thumbs .thumb { width:72px; height:72px; border-radius:.5rem; overflow:hidden; border:2px solid transparent; cursor:pointer; }
-    .thumbs .thumb.active { border-color:#0d6efd; }
-    .thumbs .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
-    #mainImg { width:100%; height:420px; object-fit:cover; border-radius:.75rem; }
-    @media (max-width: 576px){ #mainImg{height:300px} .thumbs .thumb{width:64px;height:64px} }
-    .rv-replies { margin-top:.75rem; padding-left:1rem; border-left:3px solid #eef2f6; }
+    body{background:#f6f8fb;}
+
+    /* ---------- gallery shell + auto slide on hover ---------- */
+    .gallery-shell{
+      position:relative;
+      border-radius:18px;
+      overflow:hidden;
+      background:radial-gradient(circle at top,#e0f2ff,#f9fafb 55%);
+      box-shadow:0 16px 40px rgba(15,23,42,.12);
+    }
+    #mainImg{
+      width:100%;
+      height:420px;
+      object-fit:cover;
+      display:block;
+      transition:transform .35s ease, opacity .25s ease;
+    }
+    .gallery-shell:hover #mainImg{
+      transform:scale(1.03);
+    }
+    @media (max-width: 576px){
+      #mainImg{height:300px;}
+    }
+
+    .thumbs{
+      display:flex;
+      gap:.5rem;
+      margin-top:.75rem;
+      flex-wrap:wrap;
+    }
+    .thumbs .thumb{
+      width:72px;
+      height:72px;
+      border-radius:.6rem;
+      overflow:hidden;
+      border:2px solid transparent;
+      cursor:pointer;
+      padding:0;
+      background:#fff;
+      box-shadow:0 4px 14px rgba(15,23,42,.08);
+      transition:border-color .2s, transform .15s, box-shadow .15s;
+    }
+    .thumbs .thumb img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+    .thumbs .thumb.active{
+      border-color:#0d6efd;
+      box-shadow:0 6px 18px rgba(37,99,235,.35);
+      transform:translateY(-1px);
+    }
+
+    /* dots indicator ในกล่องรูปหลัก */
+    .img-dots{
+      position:absolute;
+      left:50%;
+      bottom:10px;
+      transform:translateX(-50%);
+      display:flex;
+      gap:6px;
+      padding:4px 10px;
+      border-radius:999px;
+      background:rgba(15,23,42,.30);
+      backdrop-filter:blur(10px);
+    }
+    .img-dot{
+      width:8px;
+      height:8px;
+      border-radius:999px;
+      background:rgba(255,255,255,.45);
+      transition:all .2s ease;
+    }
+    .img-dot.active{
+      width:18px;
+      background:#ffffff;
+    }
+
+    .rv-replies{
+      margin-top:.75rem;
+      padding-left:1rem;
+      border-left:3px solid #eef2f6;
+    }
+
+    /* ---------- ปุ่มเพิ่มรถเข็นแบบเด่นๆ ---------- */
+    .btn-cart-main{
+      position:relative;
+      overflow:hidden;
+      border-radius:999px;
+      padding:.65rem 1.5rem;
+      font-weight:700;
+      letter-spacing:.02em;
+      display:inline-flex;
+      align-items:center;
+      gap:.4rem;
+      background:linear-gradient(135deg,#2563eb,#4f46e5);
+      border:0;
+      color:#fff;
+      box-shadow:0 14px 30px rgba(37,99,235,.45);
+      transform:translateY(0);
+      transition:transform .15s ease, box-shadow .15s ease, filter .15s ease;
+    }
+    .btn-cart-main .cart-pulse{
+      width:8px;
+      height:8px;
+      border-radius:999px;
+      background:#fff;
+      box-shadow:0 0 0 0 rgba(255,255,255,.7);
+      animation:cartPulse 1.4s infinite;
+    }
+    .btn-cart-main:hover{
+      filter:brightness(1.04);
+      box-shadow:0 18px 40px rgba(37,99,235,.55);
+      transform:translateY(-1px);
+    }
+    .btn-cart-main:active{
+      transform:translateY(1px) scale(.98);
+      box-shadow:0 8px 20px rgba(15,23,42,.35);
+    }
+    @keyframes cartPulse{
+      0%{box-shadow:0 0 0 0 rgba(255,255,255,.8);}
+      70%{box-shadow:0 0 0 10px rgba(255,255,255,0);}
+      100%{box-shadow:0 0 0 0 rgba(255,255,255,0);}
+    }
   </style>
 </head>
 <body>
@@ -307,15 +416,23 @@ if ($reviews) {
   <div class="row g-4">
     <!-- Gallery -->
     <div class="col-md-5">
-      <img id="mainImg" src="<?=h($gallery[0])?>" alt="<?=h($product['name'])?>" class="shadow-sm w-100">
+      <div class="gallery-shell">
+        <img id="mainImg" src="<?=h($gallery[0])?>" alt="<?=h($product['name'])?>" class="shadow-sm w-100">
+        <?php if(count($gallery) > 1): ?>
+          <div class="img-dots">
+            <?php foreach($gallery as $i => $_): ?>
+              <span class="img-dot <?= $i===0 ? 'active' : '' ?>"></span>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+      </div>
 
-      <!-- แสดงรหัสสินค้า -->
-  <div class="mt-2 text-muted small">
-    รหัสสินค้า: <?= h($product['product_code'] ?? 'PRD'.$product['id']) ?>
-  </div>
+      <div class="mt-2 text-muted small">
+        รหัสสินค้า: <?= h($product['product_code'] ?? 'PRD'.$product['id']) ?>
+      </div>
 
       <?php if (count($gallery) > 1): ?>
-        <div class="thumbs">
+        <div class="thumbs mt-2">
           <?php foreach($gallery as $i => $src): ?>
             <button type="button" class="thumb <?= $i===0 ? 'active' : '' ?>" data-src="<?= h($src) ?>" aria-label="ภาพที่ <?= $i+1 ?>">
               <img src="<?= h($src) ?>" alt="thumb <?= $i+1 ?>">
@@ -354,11 +471,15 @@ if ($reviews) {
           <button class="btn btn-outline-secondary btn-sm" id="btnPlus">+</button>
         </div>
 
-        <div class="d-flex gap-2">
-          <button class="btn btn-primary" id="btnAdd" data-product-id="<?=$product['id']?>">
-            <i class="bi bi-cart-plus"></i> เพิ่มรถเข็น
+        <div class="d-flex flex-wrap gap-2">
+          <button class="btn-cart-main" id="btnAdd" data-product-id="<?=$product['id']?>">
+            <span class="cart-pulse"></span>
+            <i class="bi bi-cart-plus"></i>
+            <span>เพิ่มรถเข็น</span>
           </button>
-          <a href="#" id="btnBuy" class="btn btn-success">ซื้อเลย</a>
+          <a href="#" id="btnBuy" class="btn btn-success">
+            <i class="bi bi-bag-check"></i> ซื้อเลย
+          </a>
         </div>
       <?php endif; ?>
     </div>
@@ -427,7 +548,6 @@ if ($reviews) {
                 <div class="mt-2"><?= nl2br(h($rv['content'])) ?></div>
 
                 <?php if ($loggedIn && (int)$rv['user_id'] === (int)($_SESSION['user_id'] ?? 0)): ?>
-                  <!-- ปุ่ม/ฟอร์มแก้ไขรีวิวของตัวเอง -->
                   <div class="mt-2">
                     <a class="btn btn-link btn-sm p-0" data-bs-toggle="collapse" href="#edit-<?= (int)$rv['id'] ?>">
                       <i class="bi bi-pencil-square"></i> แก้ไขรีวิวของฉัน
@@ -451,16 +571,16 @@ if ($reviews) {
                           <button class="btn btn-primary btn-sm"><i class="bi bi-save"></i> บันทึก</button>
                         </div>
                       </form>
-                                        <!-- ปุ่มลบรีวิวของฉัน -->
-                  <form method="post" class="mt-2"
-                        onsubmit="return confirm('ยืนยันลบรีวิวของคุณ? การลบนี้ไม่สามารถย้อนกลับได้');">
-                    <input type="hidden" name="csrf_review" value="<?= h($csrfReview) ?>">
-                    <input type="hidden" name="review_action" value="delete_review">
-                    <input type="hidden" name="review_id" value="<?= (int)$rv['id'] ?>">
-                    <button class="btn btn-outline-danger btn-sm">
-                      <i class="bi bi-trash"></i> ลบรีวิวของฉัน
-                    </button>
-                  </form>
+
+                      <form method="post" class="mt-2"
+                            onsubmit="return confirm('ยืนยันลบรีวิวของคุณ? การลบนี้ไม่สามารถย้อนกลับได้');">
+                        <input type="hidden" name="csrf_review" value="<?= h($csrfReview) ?>">
+                        <input type="hidden" name="review_action" value="delete_review">
+                        <input type="hidden" name="review_id" value="<?= (int)$rv['id'] ?>">
+                        <button class="btn btn-outline-danger btn-sm">
+                          <i class="bi bi-trash"></i> ลบรีวิวของฉัน
+                        </button>
+                      </form>
 
                     </div>
                   </div>
@@ -511,18 +631,50 @@ if ($reviews) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-// thumbs
-document.querySelectorAll('.thumbs .thumb')?.forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    const src = btn.dataset.src;
-    const main = document.getElementById('mainImg');
-    if (src && main){ main.src = src; }
-    document.querySelectorAll('.thumbs .thumb').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-  });
-});
+// ---------- gallery: thumbnails + auto slide on hover ----------
+(function(){
+  const main   = document.getElementById('mainImg');
+  const shell  = document.querySelector('.gallery-shell');
+  const thumbs = Array.from(document.querySelectorAll('.thumbs .thumb'));
+  const dots   = Array.from(document.querySelectorAll('.img-dot'));
+  if(!main || !shell || thumbs.length <= 1) return;
 
-// qty
+  let idx = 0;
+  let timer = null;
+
+  function show(i){
+    idx = i;
+    const btn = thumbs[idx];
+    const src = btn.dataset.src;
+    if(src){
+      main.style.opacity = '0';
+      setTimeout(()=>{
+        main.src = src;
+        main.style.opacity = '1';
+      }, 120);
+    }
+    thumbs.forEach((b,j)=>b.classList.toggle('active', j===idx));
+    dots.forEach((d,j)=>d.classList.toggle('active', j===idx));
+  }
+
+  thumbs.forEach((btn,i)=>{
+    btn.addEventListener('click', ()=>{ show(i); });
+  });
+
+  shell.addEventListener('mouseenter', ()=>{
+    if(timer || thumbs.length <= 1) return;
+    timer = setInterval(()=>{ show((idx+1) % thumbs.length); }, 2000);
+  });
+  shell.addEventListener('mouseleave', ()=>{
+    if(timer){
+      clearInterval(timer);
+      timer = null;
+      show(0); // กลับไปภาพแรก
+    }
+  });
+})();
+
+// ---------- qty ----------
 const qtyInput = document.getElementById('qty');
 document.getElementById('btnMinus')?.addEventListener('click', ()=>{
   const v = Math.max(1, parseInt(qtyInput.value||'1') - 1);
@@ -534,7 +686,7 @@ document.getElementById('btnPlus')?.addEventListener('click', ()=>{
   qtyInput.value = v;
 });
 
-// add to cart
+// ---------- add to cart ----------
 document.getElementById('btnAdd')?.addEventListener('click', async (e)=>{
   const pid = e.currentTarget.dataset.productId;
   const qty = Math.max(1, parseInt(qtyInput?.value || '1'));
@@ -546,9 +698,20 @@ document.getElementById('btnAdd')?.addEventListener('click', async (e)=>{
     });
     const data = await res.json();
     if(data.status === 'success'){
-      Swal.fire({toast:true, position:'bottom-end', icon:'success', title:'เพิ่มสินค้าในรถเข็นแล้ว', showConfirmButton:false, timer:1500});
+      Swal.fire({
+        toast:true,
+        position:'bottom-end',
+        icon:'success',
+        title:'เพิ่มลงรถเข็นแล้ว',
+        showConfirmButton:false,
+        timer:1600,
+        timerProgressBar:true
+      });
       const cc = document.getElementById('cart-count');
-      if(cc && typeof data.cart_count !== 'undefined'){ cc.textContent = data.cart_count; cc.classList.remove('d-none'); }
+      if(cc && typeof data.cart_count !== 'undefined'){
+        cc.textContent = data.cart_count;
+        cc.classList.remove('d-none');
+      }
     }else{
       if (/login|เข้าสู่ระบบ/i.test(data.message||'')) {
         location.href = "login.php?redirect=" + encodeURIComponent(location.pathname + location.search);
@@ -561,7 +724,7 @@ document.getElementById('btnAdd')?.addEventListener('click', async (e)=>{
   }
 });
 
-// buy now
+// ---------- buy now ----------
 document.getElementById('btnBuy')?.addEventListener('click', (e)=>{
   e.preventDefault();
   const qty = Math.max(1, parseInt(qtyInput?.value || '1'));

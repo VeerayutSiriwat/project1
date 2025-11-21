@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 15, 2025 at 05:16 PM
+-- Generation Time: Nov 21, 2025 at 07:20 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -102,8 +102,10 @@ CREATE TABLE `coupons` (
 --
 
 INSERT INTO `coupons` (`id`, `user_id`, `tradein_id`, `code`, `type`, `value`, `note`, `max_discount`, `min_order_total`, `starts_at`, `ends_at`, `uses_limit`, `per_user_limit`, `applies_to`, `allow_stack_with_discount_price`, `status`, `created_at`, `updated_at`) VALUES
-(1, 4, 3, 'TR0003-6F06B2', 'fixed', 1000.00, 'Trade-in credit TR-3', NULL, 0.00, '2025-10-01 01:46:28', '2025-12-30 01:46:28', 1, 1, 'all', 0, 'active', '2025-09-30 18:46:28', NULL),
-(5, NULL, NULL, 'NEWUSER01', 'percent', 50.00, 'new user', NULL, 8000.00, NULL, NULL, 100, 1, 'products', 1, 'active', '2025-10-09 12:57:39', '2025-10-09 15:02:21');
+(1, 4, 3, 'TR0003-6F06B2', 'fixed', 1000.00, 'Trade-in credit TR-3', NULL, 0.00, '2025-10-01 01:46:28', '2025-12-30 01:46:28', 1, 1, 'tradein', 0, 'active', '2025-09-30 18:46:28', '2025-11-20 20:22:08'),
+(5, NULL, NULL, 'NEWUSER01', 'percent', 50.00, 'new user', NULL, 8000.00, NULL, NULL, 100, 1, 'products', 1, 'active', '2025-10-09 12:57:39', '2025-10-09 15:02:21'),
+(6, NULL, NULL, 'TEST1', 'percent', 10.00, '', NULL, 500.00, NULL, NULL, 50, 1, 'services', 0, 'active', '2025-11-20 20:18:09', '2025-11-20 20:18:09'),
+(7, 4, 7, 'TR0007-CC7A17', 'fixed', 300.00, 'Trade-in credit TR-7', NULL, 0.00, '2025-11-21 12:56:11', '2026-02-19 12:56:11', 1, 1, 'all', 0, 'active', '2025-11-21 05:56:11', NULL);
 
 -- --------------------------------------------------------
 
@@ -150,7 +152,8 @@ CREATE TABLE `coupon_usages` (
 
 INSERT INTO `coupon_usages` (`id`, `coupon_id`, `user_id`, `order_id`, `context`, `amount`, `created_at`, `used_at`) VALUES
 (1, 4, 4, 57, 'order', 0.00, '2025-10-09 12:38:37', '2025-10-09 19:38:37'),
-(2, 5, 4, 59, 'order', 10426.50, '2025-10-09 13:45:58', '2025-10-09 20:45:58');
+(2, 5, 4, 59, 'order', 10426.50, '2025-10-09 13:45:58', '2025-10-09 20:45:58'),
+(3, 7, 4, 67, 'order', 300.00, '2025-11-21 05:56:44', '2025-11-21 12:56:44');
 
 -- --------------------------------------------------------
 
@@ -413,8 +416,51 @@ INSERT INTO `notifications` (`id`, `user_id`, `type`, `ref_id`, `title`, `messag
 (237, 4, 'tradein_status', 6, 'คำขอถูกยกเลิก', 'เทิร์นซื้อใหม่', 1, '2025-10-09 18:47:56'),
 (238, 3, 'new_repair', 12, 'ใบงานซ่อมใหม่', 'ST-12 จาก วีรยุทธ ศิริวัฒนานุกูล', 1, '2025-10-09 18:48:26'),
 (239, 4, 'service_status', 12, 'ส่งคำขอซ่อมแล้ว', 'ใบงาน ST-12 เข้าคิวตรวจสอบ • วันที่ที่ต้องการ: 2025-10-10', 1, '2025-10-09 18:48:26'),
-(240, 4, 'schedule_proposed', 12, 'มีข้อเสนอเวลานัดใหม่', 'แอดมินเสนอเวลา: 2025-10-10 17:41:00 - 2025-10-10 18:41:00', 0, '2025-10-10 07:17:03'),
-(241, 3, 'schedule_confirmed', 12, 'ลูกค้ายืนยันเวลานัด', 'ลูกค้ายืนยันเวลานัดของใบงาน ST-12', 1, '2025-10-10 09:50:48');
+(240, 4, 'schedule_proposed', 12, 'มีข้อเสนอเวลานัดใหม่', 'แอดมินเสนอเวลา: 2025-10-10 17:41:00 - 2025-10-10 18:41:00', 1, '2025-10-10 07:17:03'),
+(241, 3, 'schedule_confirmed', 12, 'ลูกค้ายืนยันเวลานัด', 'ลูกค้ายืนยันเวลานัดของใบงาน ST-12', 1, '2025-10-10 09:50:48'),
+(242, 3, 'new_order_cod', 62, 'ออเดอร์ใหม่ (ปลายทาง)', 'คำสั่งซื้อ #62 จาก user', 1, '2025-11-20 23:11:04'),
+(243, 4, 'order_status', 62, 'สั่งซื้อสำเร็จ', 'คำสั่งซื้อ #62 เก็บเงินปลายทาง', 1, '2025-11-20 23:11:04'),
+(244, 4, 'order_status', 62, 'คำสั่งซื้อ #62: ยกเลิก', 'คำสั่งซื้อ #62: ยกเลิก', 1, '2025-11-20 23:12:03'),
+(245, 3, 'new_order_cod', 63, 'ออเดอร์ใหม่ (ปลายทาง)', 'คำสั่งซื้อ #63 จาก user', 1, '2025-11-20 23:12:35'),
+(246, 4, 'order_status', 63, 'สั่งซื้อสำเร็จ', 'คำสั่งซื้อ #63 เก็บเงินปลายทาง', 1, '2025-11-20 23:12:35'),
+(247, 4, 'order_status', 63, 'คำสั่งซื้อ #63: ยกเลิก', 'คำสั่งซื้อ #63: ยกเลิก', 1, '2025-11-20 23:12:42'),
+(248, 3, 'new_order_bank', 64, 'ออเดอร์ใหม่ (โอนธนาคาร)', 'คำสั่งซื้อ #64 จาก user • รอชำระเงิน', 1, '2025-11-20 23:17:47'),
+(249, 4, 'payment_status', 64, 'สั่งซื้อสำเร็จ - กรุณาโอนเงิน', 'คำสั่งซื้อ #64 กรุณาโอนเงินและอัปโหลดสลิป', 1, '2025-11-20 23:17:47'),
+(250, 3, 'new_order_cod', 65, 'ออเดอร์ใหม่ (ปลายทาง)', 'คำสั่งซื้อ #65 จาก user', 1, '2025-11-20 23:30:43'),
+(251, 4, 'order_status', 65, 'สั่งซื้อสำเร็จ', 'คำสั่งซื้อ #65 เก็บเงินปลายทาง', 1, '2025-11-20 23:30:43'),
+(252, 4, 'order_status', 65, 'คำสั่งซื้อ #65: ยกเลิก', 'คำสั่งซื้อ #65: ยกเลิก', 1, '2025-11-20 23:30:59'),
+(253, 4, 'order_status', 64, 'คำสั่งซื้อ #64: ยกเลิก', 'คำสั่งซื้อ #64: ยกเลิก', 1, '2025-11-20 23:31:02'),
+(254, 4, 'tradein_status', 6, 'รับคำขอแล้ว', 'เทิร์นซื้อใหม่', 1, '2025-11-21 01:34:47'),
+(255, 4, 'tradein_status', 6, 'กำลังประเมิน', 'เทิร์นซื้อใหม่', 1, '2025-11-21 01:34:59'),
+(256, 4, 'tradein_status', 6, 'มีราคาเสนอ', 'เทิร์นซื้อใหม่ • ราคาเสนอ ~5,000.00฿', 1, '2025-11-21 01:35:12'),
+(257, 4, 'schedule_proposed', 12, 'มีข้อเสนอเวลานัดใหม่', 'แอดมินเสนอเวลา: 2025-11-21 22:40:00 - 2025-11-21 23:40:00', 1, '2025-11-21 01:36:24'),
+(258, 3, 'schedule_declined', 12, 'ลูกค้าปฏิเสธเวลานัด', 'ลูกค้าปฏิเสธข้อเสนอเวลานัดของใบงาน ST-12', 1, '2025-11-21 01:36:34'),
+(259, 4, 'schedule_proposed', 12, 'มีข้อเสนอเวลานัดใหม่', 'แอดมินเสนอเวลา: 2025-11-21 08:38:00 - 2025-11-21 09:38:00', 1, '2025-11-21 01:38:12'),
+(260, 3, 'schedule_confirmed', 12, 'ลูกค้ายืนยันเวลานัด', 'ลูกค้ายืนยันเวลานัดของใบงาน ST-12', 1, '2025-11-21 01:38:21'),
+(261, 4, 'schedule_proposed', 12, 'มีข้อเสนอเวลานัดใหม่', 'แอดมินเสนอเวลา: 2025-11-21 08:41:00 - 2025-11-21 09:41:00', 1, '2025-11-21 01:41:53'),
+(262, 3, 'schedule_confirmed', 12, 'ลูกค้ายืนยันเวลานัด', 'ลูกค้ายืนยันเวลานัดของใบงาน ST-12', 1, '2025-11-21 01:41:59'),
+(263, 4, 'schedule_proposed', 12, 'มีข้อเสนอเวลานัดใหม่', 'แอดมินเสนอเวลา: 2025-11-21 08:43:00 - 2025-11-21 09:43:00', 1, '2025-11-21 01:43:19'),
+(264, 3, 'schedule_confirmed', 12, 'ลูกค้ายืนยันเวลานัด', 'ลูกค้ายืนยันเวลานัดของใบงาน ST-12', 1, '2025-11-21 01:43:32'),
+(265, 4, 'schedule_proposed', 12, 'มีข้อเสนอเวลานัดใหม่', 'แอดมินเสนอเวลา: 2025-11-21 03:32:00 - 2025-11-21 04:32:00', 1, '2025-11-21 04:28:57'),
+(266, 3, 'new_order_bank', 66, 'ออเดอร์ใหม่ (โอนธนาคาร)', 'คำสั่งซื้อ #66 จาก user • รอชำระเงิน', 1, '2025-11-21 05:45:18'),
+(267, 4, 'payment_status', 66, 'สั่งซื้อสำเร็จ - กรุณาโอนเงิน', 'คำสั่งซื้อ #66 กรุณาโอนเงินและอัปโหลดสลิป', 1, '2025-11-21 05:45:18'),
+(268, 3, 'slip_uploaded', 66, 'มีสลิปใหม่รอตรวจสอบ', 'คำสั่งซื้อ #66 จากผู้ใช้ UID 4', 1, '2025-11-21 05:45:32'),
+(269, 4, 'payment_status', 66, 'รับสลิปแล้ว - รอตรวจสอบ', 'คำสั่งซื้อ #66 กำลังรอตรวจสอบสลิป', 1, '2025-11-21 05:45:32'),
+(270, 4, 'payment_status', 66, 'อัปเดตการชำระเงิน', 'คำสั่งซื้อ #66 สถานะการชำระเงิน: ยังไม่ชำระ', 1, '2025-11-21 05:46:08'),
+(271, 4, 'order_status', 66, 'คำสั่งซื้อ #66: ยกเลิก', 'คำสั่งซื้อ #66: ยกเลิก', 1, '2025-11-21 05:46:09'),
+(272, 3, 'new_repair', 13, 'ใบงานซ่อมใหม่', 'ST-13 จาก วีรยุทธ ศิริวัฒนานุกูล • ประกันเพิ่ม +1,200.00฿', 1, '2025-11-21 05:47:34'),
+(273, 4, 'service_status', 13, 'ส่งคำขอซ่อมแล้ว', 'ใบงาน ST-13 เข้าคิวตรวจสอบ • วันที่ที่ต้องการ: 2025-11-21', 1, '2025-11-21 05:47:34'),
+(274, 4, 'schedule_proposed', 13, 'มีข้อเสนอเวลานัดใหม่', 'แอดมินเสนอเวลา: 2025-11-21 18:49:00 - 2025-11-21 20:49:00', 1, '2025-11-21 05:49:14'),
+(275, 3, 'new_tradein', 7, 'คำขอเทิร์นใหม่', 'TI-7 จาก วีรยุทธ ศิริวัฒนานุกูล • เทิร์นซื้อใหม่ • สภาพ: broken_part • เสนอราคา ~2,000.00฿', 1, '2025-11-21 05:54:51'),
+(276, 4, 'tradein_status', 7, 'ส่งคำขอเทิร์นแล้ว', 'คำขอ TI-7 อยู่ระหว่างการประเมิน • เทิร์นซื้อใหม่', 1, '2025-11-21 05:54:51'),
+(277, 4, 'tradein_status', 7, 'กำลังประเมิน', 'เทิร์นซื้อใหม่', 1, '2025-11-21 05:55:15'),
+(278, 4, 'tradein_status', 7, 'มีข้อเสนอเทิร์นใหม่', 'เทิร์นซื้อใหม่ • ราคาเสนอ ~300.00฿', 1, '2025-11-21 05:55:48'),
+(279, 4, 'tradein_status', 7, 'มีราคาเสนอ', 'เทิร์นซื้อใหม่ • ราคาเสนอ ~300.00฿', 1, '2025-11-21 05:55:53'),
+(280, 3, 'new_order_cod', 67, 'ออเดอร์ใหม่ (ปลายทาง)', 'คำสั่งซื้อ #67 จาก user • คูปองลด 300.00 บาท', 1, '2025-11-21 05:56:44'),
+(281, 4, 'order_status', 67, 'สั่งซื้อสำเร็จ', 'คำสั่งซื้อ #67 เก็บเงินปลายทาง • ส่วนลดคูปอง 300.00 บาท', 1, '2025-11-21 05:56:44'),
+(282, 3, 'support_msg', 19, 'มีข้อความใหม่จากลูกค้า', 'UID 4: สวัสดีครับ', 1, '2025-11-21 05:56:59'),
+(283, 4, 'support_end', 0, 'สิ้นสุดการแชท', 'แอดมินได้สิ้นสุดการสนทนาแล้ว คุณสามารถเริ่มแชทใหม่ได้ทุกเมื่อ', 1, '2025-11-21 05:57:27'),
+(284, 4, 'schedule_proposed', 12, 'มีข้อเสนอเวลานัดใหม่', 'แอดมินเสนอเวลา: 2025-11-21 13:00:00 - 2025-11-21 14:00:00', 1, '2025-11-21 06:00:11');
 
 -- --------------------------------------------------------
 
@@ -494,7 +540,13 @@ INSERT INTO `orders` (`id`, `user_id`, `total_price`, `status`, `payment_status`
 (58, 4, 1860.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-10-09 12:43:53', NULL, '2025-10-09 12:44:22', 'cod', NULL, NULL, NULL),
 (59, 4, 10426.50, 'completed', 'paid', 1, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-10-09 13:45:58', NULL, '2025-10-09 15:29:21', 'cod', NULL, NULL, NULL),
 (60, 4, 20853.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-10-09 15:57:04', NULL, '2025-10-09 15:57:16', 'cod', NULL, NULL, NULL),
-(61, 4, 20853.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-10-09 17:25:03', NULL, '2025-10-09 17:25:16', 'cod', NULL, NULL, NULL);
+(61, 4, 20853.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-10-09 17:25:03', NULL, '2025-10-09 17:25:16', 'cod', NULL, NULL, NULL),
+(62, 4, 1860.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-11-20 23:11:04', NULL, '2025-11-20 23:12:03', 'cod', NULL, NULL, NULL),
+(63, 4, 1860.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-11-20 23:12:35', NULL, '2025-11-20 23:12:42', 'cod', NULL, NULL, NULL),
+(64, 4, 1860.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-11-20 23:17:47', '2025-11-21 06:32:47', '2025-11-20 23:31:02', 'bank', NULL, NULL, NULL),
+(65, 4, 1860.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-11-20 23:30:43', NULL, '2025-11-20 23:30:59', 'cod', NULL, NULL, NULL),
+(66, 4, 1860.00, 'cancelled', 'unpaid', 0, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-11-21 05:45:18', '2025-11-21 13:00:18', '2025-11-21 05:46:09', 'bank', 'slip_66_1763703932_f72e43c4.png', NULL, NULL),
+(67, 4, 1560.00, 'pending', 'unpaid', 1, 'วีรยุทธ ศิริวัฒนานุกูล', '0934944932', 'บ้าน, บางแค, กรุงเทพมหานคร, 10160', '2025-11-21 05:56:44', NULL, '2025-11-21 05:56:44', 'cod', NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -563,7 +615,13 @@ INSERT INTO `order_items` (`id`, `order_id`, `product_id`, `quantity`, `unit_pri
 (58, 58, 19, 1, 1860.00),
 (59, 59, 8, 1, 20853.00),
 (60, 60, 8, 1, 20853.00),
-(61, 61, 8, 1, 20853.00);
+(61, 61, 8, 1, 20853.00),
+(62, 62, 19, 1, 1860.00),
+(63, 63, 19, 1, 1860.00),
+(64, 64, 19, 1, 1860.00),
+(65, 65, 19, 1, 1860.00),
+(66, 66, 19, 1, 1860.00),
+(67, 67, 19, 1, 1860.00);
 
 -- --------------------------------------------------------
 
@@ -604,7 +662,7 @@ INSERT INTO `products` (`id`, `category_id`, `seller_id`, `name`, `description`,
 (16, 1, NULL, 'เครื่องตัดหญ้ารถเข็น 2 จังหวะ MXR-LMG450 MAXMA', 'รายละเอียดสินค้า\r\n• เครื่องยนต์เบนซิน 2 จังหวะ 1 ลูกสูบ\r\n• ปริมาตรกระบอกสูบ 52cc\r\n• เส้นผ่านศูนย์กลางท่อ 26 มิล\r\n• ความเร็วรอบเดินเบา 2,800 RPM\r\n• ความเร็วรอบสูงสุดของใบมีด 9,000 - 10,000 รอบ/นาที(RPM)\r\n• ความจุถังน้ำมันเชื้อเพลิง 1.2 ลิตร \r\n• น้ำมันเชื่อเพลิง (เบนซิน : น้ำมัน 2T) 25:1\r\n• น้ำหนัก 16 kg \r\n• ขนาดบรรจุภัณฑ์ 66x51x35cm', 6995.00, NULL, 6, 'pd_20250822_174109_47c410ea.png', 'active', '2025-08-22 10:41:09', '2025-08-22 10:41:09'),
 (17, 1, NULL, 'รถเข็นตัดหญ้า 2 จังหวะ ปุ่มสตาร์ท MXR-BCW ES430 MAXMA', 'รายละเอียดสินค้า\r\n• เครื่องยนต์เบนซิน : 2 จังหวะ 1 ลูกสูบ\r\n• มีระบบ สตาร์ทอัตโนมัติโดยปุ่มกด\r\n• ปริมาตรกระบอกสูบ : 42.7cc\r\n• เส้นผ่านศูนย์กลางท่อ : 26 มิล\r\n• ความเร็วรอบเดินเบา : 2,800 RPM\r\n• ความเร็วรอบสูงสุดของใบมีด : 9,000 - 10,000 รอบ/นาที(RPM)\r\n• ความจุถังน้ำมันเชื้อเพลิง : 1.2 ลิตร\r\n• น้ำมันเชื่อเพลิง (เบนซิน : น้ำมัน 2T) 25:1\r\n• น้ำหนัก : 15 kg\r\n• ขนาดบรรจุภัณฑ์ : 58x47x32cm', 8495.00, NULL, 5, 'pd_20250822_174209_566161dd.png', 'active', '2025-08-22 10:42:09', '2025-08-22 21:27:42'),
 (18, 1, NULL, 'NM-411 ตัดหญ้าสะพายข้าง 2 จังหวะ', 'NEW WEST ตัดหญ้าสะพายข้าง 2 จังหวะ NM-411 สีเขียว\r\n\r\nประเทศผู้ผลิต:   China\r\n\r\nการรับประกัน:   -', 4995.00, NULL, 0, 'pd_20250822_174402_c2764063.jpg', 'active', '2025-08-22 10:44:02', '2025-08-22 10:44:02'),
-(19, 1, NULL, 'EUROX เครื่องตัดหญ้าไร้สาย 21 โวลต์ รุ่นพับได้ R', 'รายละเอียดสินค้า\r\n- ใบตัดหญ้าผลิตจากพลาสติก PA66 แข็งแรงและคมกริบ\r\n- บังใบขนาดใหญ่เพิ่มความปลอดภัยและสามารถใส่ล้อได้\r\n- ก้านตัดหญ้าสามารถพับได้ พกพาสะดวก และใช้งานง่าย\r\n- มือจับสามารถเลื่อนปรับระดับได้ตามต้องการ มีน้ำหนักเบา\r\n- เหมาะสำหรับใช้งานในครัวเรือนที่สนามหญ้าต้นไม่ใหญ่มาก\r\n- ความเร็วรอบ 8500 รอบ/นาทีและใช้กำลังไฟฟ้า 450 วัตต์\r\n- แบตเตอรี่ 2000 แอมป์และสามารถใช้งานได้ต่อเนื่อง 2 ชม.', 1860.00, NULL, 20, 'pd_20250902_195029_860e2d58.png', 'active', '2025-08-22 10:48:55', '2025-10-09 12:44:22');
+(19, 1, NULL, 'EUROX เครื่องตัดหญ้าไร้สาย 21 โวลต์ รุ่นพับได้ R', 'รายละเอียดสินค้า\r\n- ใบตัดหญ้าผลิตจากพลาสติก PA66 แข็งแรงและคมกริบ\r\n- บังใบขนาดใหญ่เพิ่มความปลอดภัยและสามารถใส่ล้อได้\r\n- ก้านตัดหญ้าสามารถพับได้ พกพาสะดวก และใช้งานง่าย\r\n- มือจับสามารถเลื่อนปรับระดับได้ตามต้องการ มีน้ำหนักเบา\r\n- เหมาะสำหรับใช้งานในครัวเรือนที่สนามหญ้าต้นไม่ใหญ่มาก\r\n- ความเร็วรอบ 8500 รอบ/นาทีและใช้กำลังไฟฟ้า 450 วัตต์\r\n- แบตเตอรี่ 2000 แอมป์และสามารถใช้งานได้ต่อเนื่อง 2 ชม.', 1860.00, NULL, 19, 'pd_20250902_195029_860e2d58.png', 'active', '2025-08-22 10:48:55', '2025-11-21 05:56:44');
 
 -- --------------------------------------------------------
 
@@ -674,7 +732,7 @@ CREATE TABLE `product_reviews` (
 --
 
 INSERT INTO `product_reviews` (`id`, `product_id`, `user_id`, `rating`, `content`, `parent_id`, `is_admin`, `created_at`, `updated_at`) VALUES
-(4, 19, 4, 5, 'สินค้ามีคุณภาพมาก ส่งไว', NULL, 0, '2025-08-22 19:31:09', '2025-08-22 21:29:37'),
+(4, 19, 4, 5, 'สินค้ามีคุณภาพมาก ส่งไว', NULL, 0, '2025-08-22 19:31:09', '2025-11-21 04:47:35'),
 (5, 19, 3, 0, 'ขอบคุณครับ', 4, 1, '2025-08-22 19:31:33', NULL);
 
 -- --------------------------------------------------------
@@ -705,7 +763,14 @@ CREATE TABLE `schedule_proposals` (
 
 INSERT INTO `schedule_proposals` (`id`, `ticket_type`, `ticket_id`, `slot_start`, `slot_end`, `duration_minutes`, `status`, `token`, `note`, `created_by`, `customer_id`, `created_at`, `updated_at`) VALUES
 (3, 'repair', 9, '2025-09-07 13:50:00', '2025-09-07 15:20:00', 90, 'accepted', '', '0', 3, 4, '2025-09-06 01:01:54', '2025-09-06 01:02:59'),
-(29, 'repair', 12, '2025-10-10 17:41:00', '2025-10-10 18:41:00', 60, 'accepted', 'dfdc6820a781d0412eddb2fc1465159c', '', 3, 4, '2025-10-10 14:17:03', '2025-10-10 16:50:47');
+(29, 'repair', 12, '2025-10-10 17:41:00', '2025-10-10 18:41:00', 60, 'cancelled', 'dfdc6820a781d0412eddb2fc1465159c', '', 3, 4, '2025-10-10 14:17:03', '2025-11-21 11:26:56'),
+(30, 'repair', 12, '2025-11-21 22:40:00', '2025-11-21 23:40:00', 60, 'declined', 'e8185c7b1eab32daa84d57318d0bff6d', '', 3, 4, '2025-11-21 08:36:24', '2025-11-21 08:36:34'),
+(31, 'repair', 12, '2025-11-21 08:38:00', '2025-11-21 09:38:00', 60, 'cancelled', '1a5fe518864ece41e9037434a3530d69', '', 3, 4, '2025-11-21 08:38:12', '2025-11-21 11:26:56'),
+(32, 'repair', 12, '2025-11-21 08:41:00', '2025-11-21 09:41:00', 60, 'cancelled', '71a6d8bce913e3829a1b9c422fea33c5', '', 3, 4, '2025-11-21 08:41:53', '2025-11-21 11:26:56'),
+(33, 'repair', 12, '2025-11-21 08:43:00', '2025-11-21 09:43:00', 60, 'cancelled', 'c50f29e3a86dc97a2008d72c52def884', '', 3, 4, '2025-11-21 08:43:19', '2025-11-21 11:26:56'),
+(34, 'repair', 12, '2025-11-21 03:32:00', '2025-11-21 04:32:00', 60, 'cancelled', 'd425f4de7845450aed730a9708dd72bc', '', 3, 4, '2025-11-21 11:28:57', '2025-11-21 13:00:07'),
+(35, 'repair', 13, '2025-11-21 18:49:00', '2025-11-21 20:49:00', 120, 'cancelled', '95964e271d6d955babbb514e2e776d78', '', 3, 4, '2025-11-21 12:49:14', '2025-11-21 12:50:27'),
+(36, 'repair', 12, '2025-11-21 13:00:00', '2025-11-21 14:00:00', 60, 'cancelled', '0c07ce67d65bb7296c2726e8904c9cfd', '', 3, 4, '2025-11-21 13:00:11', '2025-11-21 13:01:46');
 
 -- --------------------------------------------------------
 
@@ -755,7 +820,90 @@ INSERT INTO `service_status_logs` (`id`, `ticket_id`, `status`, `note`, `created
 (102, 12, 'confirm', '', '2025-10-10 10:38:19'),
 (103, 12, 'done', '', '2025-10-10 10:38:52'),
 (104, 12, 'confirm', '', '2025-10-10 11:08:48'),
-(105, 12, 'repairing', '', '2025-10-10 11:08:58');
+(105, 12, 'repairing', '', '2025-10-10 11:08:58'),
+(106, 12, 'done', '', '2025-11-20 19:02:31'),
+(107, 12, 'returned', '', '2025-11-20 19:14:49'),
+(108, 12, 'done', '', '2025-11-20 19:15:01'),
+(109, 12, 'pricing', '', '2025-11-20 23:37:39'),
+(110, 12, 'repairing', '', '2025-11-20 23:37:56'),
+(111, 12, 'done', '', '2025-11-20 23:38:00'),
+(112, 12, 'repairing', '', '2025-11-21 00:43:16'),
+(113, 12, 'pricing', '', '2025-11-21 00:43:21'),
+(114, 12, 'diagnose', '', '2025-11-21 00:43:31'),
+(115, 12, 'repairing', '', '2025-11-21 00:43:45'),
+(116, 12, 'pricing', '', '2025-11-21 01:05:28'),
+(117, 12, 'queued', '', '2025-11-21 01:05:52'),
+(118, 12, 'diagnose', '', '2025-11-21 01:05:53'),
+(119, 12, 'queued', '', '2025-11-21 01:09:38'),
+(120, 12, 'confirm', '', '2025-11-21 01:09:43'),
+(121, 12, 'confirm', '', '2025-11-21 01:17:53'),
+(122, 12, 'confirm', '', '2025-11-21 01:17:56'),
+(123, 12, 'confirm', '', '2025-11-21 01:18:00'),
+(124, 12, 'waiting_parts', '', '2025-11-21 01:18:20'),
+(125, 12, 'repairing', '', '2025-11-21 01:18:34'),
+(126, 12, 'queued', '', '2025-11-21 01:18:40'),
+(127, 12, 'confirm', '', '2025-11-21 01:18:40'),
+(128, 12, 'confirm', '', '2025-11-21 01:19:00'),
+(129, 12, 'confirm', '', '2025-11-21 01:21:27'),
+(130, 12, 'queued', '', '2025-11-21 01:21:28'),
+(131, 12, 'queued', '', '2025-11-21 01:21:30'),
+(132, 12, 'confirm', '', '2025-11-21 01:21:31'),
+(133, 12, 'waiting_parts', '', '2025-11-21 01:21:31'),
+(134, 12, 'confirm', '', '2025-11-21 01:21:32'),
+(135, 12, 'confirm', '', '2025-11-21 01:21:33'),
+(136, 12, 'confimed', '', '2025-11-21 01:23:42'),
+(137, 12, 'queued', '', '2025-11-21 01:23:44'),
+(138, 12, 'confimed', '', '2025-11-21 01:23:46'),
+(139, 12, 'confimed', '', '2025-11-21 01:23:48'),
+(140, 12, 'confimed', '', '2025-11-21 01:24:41'),
+(141, 12, 'confirmed', '', '2025-11-21 01:24:43'),
+(142, 12, 'confirmed', '', '2025-11-21 01:24:44'),
+(143, 12, 'confirmed', '', '2025-11-21 01:26:04'),
+(144, 12, 'queued', '', '2025-11-21 01:26:04'),
+(145, 12, 'confirm', '', '2025-11-21 01:26:20'),
+(146, 12, 'confirm', '', '2025-11-21 01:27:30'),
+(147, 12, 'confirm', '', '2025-11-21 01:27:34'),
+(148, 12, 'queued', '', '2025-11-21 01:27:34'),
+(149, 12, 'queued', '', '2025-11-21 01:27:34'),
+(150, 12, 'queued', '', '2025-11-21 01:27:35'),
+(151, 12, 'confirm', '', '2025-11-21 01:28:09'),
+(152, 12, 'confirm', '', '2025-11-21 01:28:10'),
+(153, 12, 'confirm', '', '2025-11-21 01:28:11'),
+(154, 12, 'confirm', '', '2025-11-21 01:30:32'),
+(155, 12, 'confirm', '', '2025-11-21 01:30:36'),
+(156, 12, 'confirm', '', '2025-11-21 01:32:05'),
+(157, 12, 'waiting_parts', '', '2025-11-21 01:36:53'),
+(158, 12, 'repairing', '', '2025-11-21 01:37:02'),
+(159, 12, 'queued', '', '2025-11-21 01:38:04'),
+(160, 12, 'confirm', '', '2025-11-21 01:38:05'),
+(161, 12, 'queued', '', '2025-11-21 01:38:05'),
+(162, 12, 'confirm', '', '2025-11-21 01:41:41'),
+(163, 12, 'confirm', '', '2025-11-21 01:41:41'),
+(164, 12, 'queued', '', '2025-11-21 01:41:44'),
+(165, 12, 'confirm', '', '2025-11-21 01:43:04'),
+(166, 12, 'queued', '', '2025-11-21 01:43:07'),
+(167, 12, 'confirm', '', '2025-11-21 01:43:53'),
+(168, 12, 'queued', 'แอดมินล้างนัดหมายที่ตั้งไว้', '2025-11-21 04:26:56'),
+(169, 12, 'queued', '', '2025-11-21 04:28:34'),
+(170, 12, 'confirm', 'ลูกค้ายืนยันเวลานัดแล้วผ่านระบบ', '2025-11-21 04:29:12'),
+(171, 12, 'waiting_parts', '', '2025-11-21 04:29:32'),
+(172, 12, 'repairing', '', '2025-11-21 05:26:37'),
+(173, 13, 'queued', 'ส่งคำขอซ่อมเข้าคิวแล้ว (ความเร่งด่วน: ปกติ)', '2025-11-21 05:47:34'),
+(174, 13, 'confirm', 'ลูกค้ายืนยันเวลานัดแล้วผ่านระบบ', '2025-11-21 05:49:43'),
+(175, 13, 'queued', 'แอดมินล้างนัดหมายที่ตั้งไว้', '2025-11-21 05:50:27'),
+(176, 13, 'cancelled', '', '2025-11-21 05:50:55'),
+(177, 12, 'done', '', '2025-11-21 05:51:59'),
+(178, 12, 'queued', '', '2025-11-21 05:59:36'),
+(179, 12, 'confirm', '', '2025-11-21 05:59:46'),
+(180, 12, 'queued', '', '2025-11-21 05:59:56'),
+(181, 12, 'queued', '', '2025-11-21 06:00:03'),
+(182, 12, 'queued', 'แอดมินล้างนัดหมายที่ตั้งไว้', '2025-11-21 06:00:07'),
+(183, 12, 'confirm', 'แอดมินยืนยันเวลานัดให้ลูกค้า', '2025-11-21 06:00:15'),
+(184, 12, 'waiting_parts', '', '2025-11-21 06:00:26'),
+(185, 12, 'repairing', '', '2025-11-21 06:00:34'),
+(186, 12, 'done', '', '2025-11-21 06:01:30'),
+(187, 12, 'cancelled', '', '2025-11-21 06:01:40'),
+(188, 12, 'queued', 'แอดมินล้างนัดหมายที่ตั้งไว้', '2025-11-21 06:01:46');
 
 -- --------------------------------------------------------
 
@@ -777,7 +925,7 @@ CREATE TABLE `service_tickets` (
   `scheduled_at` datetime DEFAULT NULL,
   `schedule_status` enum('none','proposed','confirmed') NOT NULL DEFAULT 'none',
   `image_path` varchar(255) DEFAULT NULL,
-  `status` enum('queued','diagnose','pricing','repairing','done','returned','cancelled') DEFAULT 'queued',
+  `status` enum('queued','confirm','waiting_parts','repairing','done','returned','cancelled') DEFAULT 'queued',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp(),
   `parts_grade` enum('used','standard','premium') NOT NULL DEFAULT 'standard',
@@ -788,16 +936,47 @@ CREATE TABLE `service_tickets` (
   `estimate_total` decimal(10,2) DEFAULT NULL,
   `appointment_start` datetime DEFAULT NULL,
   `appointment_end` datetime DEFAULT NULL,
-  `appointment_status` enum('none','pending','confirmed','declined') NOT NULL DEFAULT 'none'
+  `appointment_status` enum('none','pending','confirmed','declined') NOT NULL DEFAULT 'none',
+  `service_price` decimal(10,2) DEFAULT NULL,
+  `payment_status` enum('unpaid','pending','paid') NOT NULL DEFAULT 'unpaid',
+  `payment_slip` varchar(255) DEFAULT NULL,
+  `pay_method` enum('cash','bank','wallet') DEFAULT NULL,
+  `paid_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `service_tickets`
 --
 
-INSERT INTO `service_tickets` (`id`, `user_id`, `device_type`, `brand`, `model`, `urgency`, `issue`, `line_id`, `phone`, `desired_date`, `scheduled_at`, `schedule_status`, `image_path`, `status`, `created_at`, `updated_at`, `parts_grade`, `parts_grade_surcharge`, `ext_warranty_months`, `ext_warranty_price`, `base_warranty_months`, `estimate_total`, `appointment_start`, `appointment_end`, `appointment_status`) VALUES
-(9, 4, '1', '1', '1', 'normal', '1', '1', '1', '2025-09-06', NULL, 'confirmed', NULL, 'cancelled', '2025-09-05 17:49:14', '2025-10-09 18:33:48', 'used', 0.00, 0, 0.00, 1, 0.00, '2025-09-06 00:00:00', '2025-09-06 01:00:00', 'confirmed'),
-(12, 4, '1', '1', '1', 'normal', '1', '1', '1', '2025-10-10', NULL, 'confirmed', NULL, 'repairing', '2025-10-09 18:48:26', '2025-10-10 11:08:58', 'used', 0.00, 0, 0.00, 1, 0.00, '2025-10-10 00:00:00', '2025-10-10 01:00:00', 'confirmed');
+INSERT INTO `service_tickets` (`id`, `user_id`, `device_type`, `brand`, `model`, `urgency`, `issue`, `line_id`, `phone`, `desired_date`, `scheduled_at`, `schedule_status`, `image_path`, `status`, `created_at`, `updated_at`, `parts_grade`, `parts_grade_surcharge`, `ext_warranty_months`, `ext_warranty_price`, `base_warranty_months`, `estimate_total`, `appointment_start`, `appointment_end`, `appointment_status`, `service_price`, `payment_status`, `payment_slip`, `pay_method`, `paid_at`) VALUES
+(9, 4, '1', '1', '1', 'normal', '1', '1', '1', '2025-09-06', NULL, 'confirmed', NULL, 'cancelled', '2025-09-05 17:49:14', '2025-10-09 18:33:48', 'used', 0.00, 0, 0.00, 1, 0.00, '2025-09-06 00:00:00', '2025-09-06 01:00:00', 'confirmed', NULL, 'unpaid', NULL, NULL, NULL),
+(12, 4, '1', '1', '1', 'normal', '1', '1', '1', '2025-10-10', NULL, 'none', NULL, 'cancelled', '2025-10-09 18:48:26', '2025-11-21 06:01:46', 'used', 0.00, 0, 0.00, 1, 0.00, NULL, NULL, 'none', 500.00, 'paid', 'uploads/slips/slip_st12_u4_1763670762.png', 'cash', '2025-11-21 12:53:35'),
+(13, 4, '2', '2', 'พพ', 'normal', 'พัง', '3', '2', '2025-11-21', NULL, 'none', 'uploads/service/202511/svc_20251121_124734_5efbf0.png', 'cancelled', '2025-11-21 05:47:34', '2025-11-21 05:50:55', 'premium', 0.00, 3, 1200.00, 1, 1200.00, NULL, NULL, 'none', 900.00, 'unpaid', NULL, NULL, NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `service_ticket_items`
+--
+
+CREATE TABLE `service_ticket_items` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `ticket_id` bigint(20) UNSIGNED NOT NULL,
+  `item_type` enum('part','labor','service','fee','other') NOT NULL DEFAULT 'part' COMMENT 'ประเภท: อะไหล่, ค่าแรง, ค่าบริการ, ค่าธรรมเนียม, อื่นๆ',
+  `description` varchar(255) NOT NULL,
+  `qty` decimal(10,2) NOT NULL DEFAULT 1.00,
+  `unit_price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `service_ticket_items`
+--
+
+INSERT INTO `service_ticket_items` (`id`, `ticket_id`, `item_type`, `description`, `qty`, `unit_price`, `created_at`) VALUES
+(1, 12, 'part', '11', 1.00, 500.00, '2025-11-20 19:08:29'),
+(2, 13, 'part', 'ฟหกหฟก', 1.00, 400.00, '2025-11-21 05:48:15'),
+(3, 13, 'labor', 'เปลี่ยนใจ', 1.00, 500.00, '2025-11-21 05:48:37');
 
 -- --------------------------------------------------------
 
@@ -883,7 +1062,8 @@ CREATE TABLE `tradein_requests` (
 
 INSERT INTO `tradein_requests` (`id`, `user_id`, `device_type`, `brand`, `model`, `device_condition`, `need`, `image_path`, `status`, `scheduled_at`, `schedule_status`, `offer_price`, `selected_product_id`, `order_id`, `created_at`, `updated_at`) VALUES
 (3, 4, 'ๅ', 'ๅ', 'ๅ', '', 'buy_new', NULL, 'accepted', NULL, 'none', 1000.00, NULL, NULL, '2025-09-30 18:45:20', '2025-09-30 18:46:28'),
-(6, 4, 'ๅ', 'ๅ', 'ๅ', 'working', 'buy_new', NULL, 'cancelled', NULL, 'none', 5000.00, NULL, NULL, '2025-10-09 18:10:57', '2025-10-09 18:47:56');
+(6, 4, 'ๅ', 'ๅ', 'ๅ', 'working', 'buy_new', NULL, 'rejected', NULL, 'none', 5000.00, NULL, NULL, '2025-10-09 18:10:57', '2025-11-21 01:35:28'),
+(7, 4, '1', '1', '1', 'broken_part', 'buy_new', 'uploads/tradein/202511/ti_20251121_125451_b03db0_1.png', 'accepted', NULL, 'none', 300.00, NULL, NULL, '2025-11-21 05:54:51', '2025-11-21 05:56:11');
 
 -- --------------------------------------------------------
 
@@ -916,7 +1096,15 @@ INSERT INTO `tradein_status_logs` (`id`, `request_id`, `status`, `note`, `create
 (37, 6, 'review', '', '2025-10-09 18:47:03'),
 (38, 6, 'offered', '', '2025-10-09 18:47:17'),
 (39, 6, 'rejected', 'ลูกค้าปฏิเสธข้อเสนอ', '2025-10-09 18:47:43'),
-(40, 6, 'cancelled', '', '2025-10-09 18:47:56');
+(40, 6, 'cancelled', '', '2025-10-09 18:47:56'),
+(41, 6, 'submitted', '', '2025-11-21 01:34:47'),
+(42, 6, 'review', '', '2025-11-21 01:34:59'),
+(43, 6, 'offered', '', '2025-11-21 01:35:12'),
+(44, 6, 'rejected', 'ลูกค้าปฏิเสธข้อเสนอ', '2025-11-21 01:35:28'),
+(45, 7, 'submitted', 'ส่งคำขอเทิร์นใหม่', '2025-11-21 05:54:51'),
+(46, 7, 'review', '', '2025-11-21 05:55:15'),
+(47, 7, 'offered', '', '2025-11-21 05:55:53'),
+(48, 7, 'accepted', 'ลูกค้ายอมรับข้อเสนอ', '2025-11-21 05:56:11');
 
 -- --------------------------------------------------------
 
@@ -953,7 +1141,7 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id`, `username`, `email`, `google_id`, `provider`, `password_hash`, `role`, `phone`, `address`, `profile_pic`, `is_active`, `created_at`, `updated_at`, `full_name`, `avatar`, `address_line1`, `address_line2`, `district`, `province`, `postcode`) VALUES
 (3, 'admin', 'test@gmail.com', NULL, 'local', '$2y$10$lTCTupdf0tWtcpSYebJ.3OmAvOP.XNvGmjD0cQ57uRYXQEfc9hTn.', 'admin', NULL, NULL, NULL, 1, '2025-08-19 18:44:05', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
-(4, 'user', 'test1@gmail.com', NULL, 'local', '$2y$10$//mlVomn6qgFywE4ljuEt.nuBNd2mr2Y1pjGG4EII6QOkhSGX6tWW', 'user', '0934944932', NULL, NULL, 1, '2025-08-19 19:55:52', '2025-10-06 20:50:58', 'วีรยุทธ ศิริวัฒนานุกูล', 'uploads/avatars/u4_1755871652_55efaa.jpg', 'บ้าน', '', 'บางแค', 'กรุงเทพมหานคร', '10160'),
+(4, 'user', 'test1@gmail.com', NULL, 'local', '$2y$10$//mlVomn6qgFywE4ljuEt.nuBNd2mr2Y1pjGG4EII6QOkhSGX6tWW', 'user', '0934944932', NULL, NULL, 1, '2025-08-19 19:55:52', '2025-11-21 00:25:04', 'วีรยุทธ ศิริวัฒนานุกูล', 'uploads/avatars/u4_1755871652_55efaa.jpg', 'บ้าน', '', 'บางแค', 'กรุงเทพมหานคร', '10160'),
 (5, 'user1', 'test2@gmail.com', NULL, 'local', '$2y$10$RdgznaZCoWGUKF5OGR9sVeYoSwtxZ9kqb56OhHv8nUkn3scsOsILS', 'user', NULL, NULL, NULL, 1, '2025-08-23 11:05:05', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
 (6, 'siriwat903128', 'siriwat903128@gmail.com', '115730826793962220903', 'google', NULL, 'user', NULL, NULL, NULL, 1, '2025-08-26 18:26:28', NULL, 'siri wat', 'https://lh3.googleusercontent.com/a/ACg8ocIdfvLmNanxW5nD8739Jvp_Adcm7f2FkrcJ9LEV-afxM0jufA=s96-c', NULL, NULL, NULL, NULL, NULL),
 (7, 'veerayut3129', 'veerayut3129@gmail.com', '117822113326462938656', 'google', NULL, 'user', NULL, NULL, NULL, 1, '2025-10-08 19:00:14', NULL, 'Veer ayut', 'https://lh3.googleusercontent.com/a/ACg8ocK1PZl8X-cBdXEVIjvgN0VBLLO67xt51lrF5hreyCVJgCSAy4A=s96-c', NULL, NULL, NULL, NULL, NULL);
@@ -1092,6 +1280,13 @@ ALTER TABLE `service_tickets`
   ADD KEY `idx_service_user` (`user_id`);
 
 --
+-- Indexes for table `service_ticket_items`
+--
+ALTER TABLE `service_ticket_items`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_ticket` (`ticket_id`);
+
+--
 -- Indexes for table `support_messages`
 --
 ALTER TABLE `support_messages`
@@ -1148,7 +1343,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `cart_items`
 --
 ALTER TABLE `cart_items`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=207;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=229;
 
 --
 -- AUTO_INCREMENT for table `categories`
@@ -1160,31 +1355,31 @@ ALTER TABLE `categories`
 -- AUTO_INCREMENT for table `coupons`
 --
 ALTER TABLE `coupons`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `coupon_usages`
 --
 ALTER TABLE `coupon_usages`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=242;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=285;
 
 --
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=62;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=68;
 
 --
 -- AUTO_INCREMENT for table `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=62;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=68;
 
 --
 -- AUTO_INCREMENT for table `products`
@@ -1208,25 +1403,31 @@ ALTER TABLE `product_reviews`
 -- AUTO_INCREMENT for table `schedule_proposals`
 --
 ALTER TABLE `schedule_proposals`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 
 --
 -- AUTO_INCREMENT for table `service_status_logs`
 --
 ALTER TABLE `service_status_logs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=106;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=189;
 
 --
 -- AUTO_INCREMENT for table `service_tickets`
 --
 ALTER TABLE `service_tickets`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+
+--
+-- AUTO_INCREMENT for table `service_ticket_items`
+--
+ALTER TABLE `service_ticket_items`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `support_messages`
 --
 ALTER TABLE `support_messages`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT for table `tradein_images`
@@ -1238,13 +1439,13 @@ ALTER TABLE `tradein_images`
 -- AUTO_INCREMENT for table `tradein_requests`
 --
 ALTER TABLE `tradein_requests`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `tradein_status_logs`
 --
 ALTER TABLE `tradein_status_logs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=49;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -1308,6 +1509,12 @@ ALTER TABLE `service_status_logs`
 --
 ALTER TABLE `service_tickets`
   ADD CONSTRAINT `fk_service_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `service_ticket_items`
+--
+ALTER TABLE `service_ticket_items`
+  ADD CONSTRAINT `fk_service_ticket_items_ticket` FOREIGN KEY (`ticket_id`) REFERENCES `service_tickets` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `tradein_requests`
